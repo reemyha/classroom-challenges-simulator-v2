@@ -470,28 +470,16 @@
       <HintPath>C:\Program Files\Unity\Hub\Editor\2022.3.24f1\Editor\Data\Managed\UnityEngine\UnityEditor.UnityConnectModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="ReportGeneratorMerged">
-      <HintPath>Library\PackageCache\com.unity.testtools.codecoverage@1.2.5\lib\ReportGenerator\ReportGeneratorMerged.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Unity.VisualScripting.Antlr3.Runtime">
-      <HintPath>Library\PackageCache\com.unity.visualscripting@1.9.2\Runtime\VisualScripting.Flow\Dependencies\NCalc\Unity.VisualScripting.Antlr3.Runtime.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Microsoft.Win32.Registry">
-      <HintPath>Assets\Packages\Microsoft.Win32.Registry.5.0.0\lib\netstandard2.0\Microsoft.Win32.Registry.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Snappier">
-      <HintPath>Assets\Packages\Snappier.1.0.0\lib\netstandard2.1\Snappier.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="MongoDB.Bson">
       <HintPath>Assets\Packages\MongoDB.Bson.3.5.0\lib\netstandard2.1\MongoDB.Bson.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="MongoDB.Driver">
-      <HintPath>Assets\Packages\MongoDB.Driver.3.5.0\lib\netstandard2.1\MongoDB.Driver.dll</HintPath>
+    <Reference Include="SharpCompress">
+      <HintPath>Assets\Packages\SharpCompress.0.30.1\lib\netstandard2.1\SharpCompress.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ReportGeneratorMerged">
+      <HintPath>Library\PackageCache\com.unity.testtools.codecoverage@1.2.5\lib\ReportGenerator\ReportGeneratorMerged.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System.Security.Principal.Windows">
@@ -502,28 +490,40 @@
       <HintPath>Assets\Packages\System.Security.AccessControl.5.0.0\lib\netstandard2.0\System.Security.AccessControl.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="SharpCompress">
-      <HintPath>Assets\Packages\SharpCompress.0.30.1\lib\netstandard2.1\SharpCompress.dll</HintPath>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>Assets\Packages\Microsoft.Extensions.Logging.Abstractions.2.0.0\lib\netstandard2.0\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="DnsClient">
-      <HintPath>Assets\Packages\DnsClient.1.6.1\lib\netstandard2.1\DnsClient.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe">
-      <HintPath>Assets\Packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    <Reference Include="Snappier">
+      <HintPath>Assets\Packages\Snappier.1.0.0\lib\netstandard2.1\Snappier.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="ZstdSharp">
       <HintPath>Assets\Packages\ZstdSharp.Port.0.7.3\lib\netstandard2.1\ZstdSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
-      <HintPath>Assets\Packages\Microsoft.Extensions.Logging.Abstractions.2.0.0\lib\netstandard2.0\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    <Reference Include="Unity.VisualScripting.Antlr3.Runtime">
+      <HintPath>Library\PackageCache\com.unity.visualscripting@1.9.2\Runtime\VisualScripting.Flow\Dependencies\NCalc\Unity.VisualScripting.Antlr3.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.Win32.Registry">
+      <HintPath>Assets\Packages\Microsoft.Win32.Registry.5.0.0\lib\netstandard2.0\Microsoft.Win32.Registry.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="DnsClient">
+      <HintPath>Assets\Packages\DnsClient.1.6.1\lib\netstandard2.1\DnsClient.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MongoDB.Driver">
+      <HintPath>Assets\Packages\MongoDB.Driver.3.5.0\lib\netstandard2.1\MongoDB.Driver.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System.Text.Encoding.CodePages">
       <HintPath>Assets\Packages\System.Text.Encoding.CodePages.5.0.0\lib\netstandard2.0\System.Text.Encoding.CodePages.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>Assets\Packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\netstandard2.0\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="netstandard">

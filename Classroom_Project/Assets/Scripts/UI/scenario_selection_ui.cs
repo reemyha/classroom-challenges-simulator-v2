@@ -1,3 +1,5 @@
+
+// filepath: c:\Users\micha\Classroom_Project\Classroom-Challenges-Simulator\Classroom_Project\Assets\Scripts\UI\scenario_selection_ui.cs
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -7,34 +9,36 @@ using UnityEngine.SceneManagement;
 /// <summary>
 /// Displays available scenarios and allows user to select one.
 /// Shows scenario details like difficulty, description, and student count.
+/// All scenario buttons are positioned at (0,0) with layout handled by container.
+/// Multiple scenarios are displayed in a scrollable list.
 /// </summary>
 public class ScenarioSelectionUI : MonoBehaviour
 {
     [Header("UI References")]
     [Tooltip("Panel containing the scenario list")]
     public GameObject scenarioSelectionPanel;
-    
-    [Tooltip("Container where scenario buttons will be created")]
+
+    [Tooltip("Container where scenario buttons will be created (should be the Content of a ScrollRect)")]
     public Transform scenarioListContainer;
-    
+
     [Tooltip("Prefab for scenario button")]
     public GameObject scenarioButtonPrefab;
-    
+
     [Tooltip("Text showing user info")]
     public TextMeshProUGUI userInfoText;
-    
+
     [Tooltip("Panel showing selected scenario details")]
     public GameObject scenarioDetailsPanel;
-    
+
     [Tooltip("Details text elements")]
     public TextMeshProUGUI scenarioNameText;
     public TextMeshProUGUI scenarioDescriptionText;
     public TextMeshProUGUI scenarioDifficultyText;
     public TextMeshProUGUI scenarioStudentCountText;
-    
+
     [Tooltip("Start simulation button")]
     public Button startSimulationButton;
-    
+
     [Tooltip("Logout button")]
     public Button logoutButton;
 
@@ -42,12 +46,25 @@ public class ScenarioSelectionUI : MonoBehaviour
     [Tooltip("Name of the simulation scene to load")]
     public string simulationSceneName = "MainClassroom";
 
+    [Header("List Settings")]
+    [Tooltip("Spacing between scenario buttons in the list")]
+    public float buttonSpacing = 10f;
+
+    [Tooltip("Padding for the list container (Left, Right, Top, Bottom)")]
+    public int paddingLeft = 10;
+    public int paddingRight = 10;
+    public int paddingTop = 10;
+    public int paddingBottom = 10;
+
     // References
     private AuthenticationManager authManager;
     private ScenarioLoader scenarioLoader;
-    private List<string> availableScenarios;
+    private List<string> availableScenarios = new List<string>();
     private string selectedScenarioName;
     private ScenarioConfig selectedScenario;
+    private Button lastSelectedButton;
+
+    // NOTE: no constructors, no RectOffset field initializers anywhere
 
     void Start()
     {
@@ -83,6 +100,9 @@ public class ScenarioSelectionUI : MonoBehaviour
         if (scenarioDetailsPanel != null)
             scenarioDetailsPanel.SetActive(false);
 
+        // Ensure the list container has proper layout components
+        EnsureLayoutComponents();
+
         // Display user info
         UpdateUserInfo();
 
@@ -91,22 +111,61 @@ public class ScenarioSelectionUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Update the user information display
+    /// Ensures the list container has the necessary layout components for proper list display
     /// </summary>
+    void EnsureLayoutComponents()
+    {
+        if (scenarioListContainer == null)
+        {
+            Debug.LogWarning("Scenario list container is not assigned.");
+            return;
+        }
+
+        var containerGO = scenarioListContainer.gameObject;
+
+        // Vertical layout to stack buttons
+        var layoutGroup = containerGO.GetComponent<VerticalLayoutGroup>();
+        if (layoutGroup == null)
+        {
+            layoutGroup = containerGO.AddComponent<VerticalLayoutGroup>();
+        }
+
+        layoutGroup.childControlHeight = false;
+        layoutGroup.childControlWidth = true;
+        layoutGroup.childForceExpandHeight = false;
+        layoutGroup.childForceExpandWidth = true;
+        layoutGroup.spacing = buttonSpacing;
+        // RectOffset created here (in Start), which is allowed
+        layoutGroup.padding = new RectOffset(paddingLeft, paddingRight, paddingTop, paddingBottom);
+        layoutGroup.childAlignment = TextAnchor.UpperCenter;
+
+        // Content size fitter so content height grows with children
+        var sizeFitter = containerGO.GetComponent<ContentSizeFitter>();
+        if (sizeFitter == null)
+        {
+            sizeFitter = containerGO.AddComponent<ContentSizeFitter>();
+        }
+        sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        sizeFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+    }
+
     void UpdateUserInfo()
     {
         if (userInfoText != null && authManager != null && authManager.currentUser != null)
         {
-            UserModel user = authManager.currentUser;
+            var user = authManager.currentUser;
             userInfoText.text = $"Welcome, {user.FullName}\nRole: {user.Role}\nSessions: {user.SessionCount}";
         }
     }
 
     /// <summary>
-    /// Load and display all available scenarios
+    /// Load and display all available scenarios as a vertical list
     /// </summary>
     public void RefreshScenarioList()
     {
+        if (scenarioListContainer == null)
+            return;
+
         Debug.Log("Refreshing scenario list...");
 
         // Clear existing buttons
@@ -115,125 +174,161 @@ public class ScenarioSelectionUI : MonoBehaviour
             Destroy(child.gameObject);
         }
 
+        lastSelectedButton = null;
+        selectedScenario = null;
+        selectedScenarioName = null;
+        if (startSimulationButton != null)
+            startSimulationButton.interactable = false;
+
         // Get available scenarios
         availableScenarios = scenarioLoader.GetAvailableScenarios();
 
-        if (availableScenarios.Count == 0)
+        if (availableScenarios == null || availableScenarios.Count == 0)
         {
             Debug.LogWarning("No scenarios found!");
             CreateNoScenariosMessage();
             return;
         }
 
-        // Create a button for each scenario
-        foreach (string scenarioFileName in availableScenarios)
+        int index = 0;
+        foreach (var scenarioFileName in availableScenarios)
         {
-            CreateScenarioButton(scenarioFileName);
+            CreateScenarioButton(scenarioFileName, index);
+            index++;
         }
 
-        Debug.Log($"Loaded {availableScenarios.Count} scenarios");
+        // Force Unity UI to re-layout
+        Canvas.ForceUpdateCanvases();
+        var containerRect = scenarioListContainer as RectTransform;
+        if (containerRect != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(containerRect);
+        }
     }
 
     /// <summary>
-    /// Create a button for a scenario
+    /// Create a button for a scenario; its local position is set to (0,0)
+    /// and the VerticalLayoutGroup on the container arranges it in a list.
     /// </summary>
-    void CreateScenarioButton(string scenarioFileName)
+    void CreateScenarioButton(string scenarioFileName, int index)
     {
-        // Check if user has permission
         bool canAccess = authManager.CanAccessScenario(scenarioFileName);
 
         GameObject buttonObj;
 
-        // Create button from prefab or create simple button
         if (scenarioButtonPrefab != null)
         {
             buttonObj = Instantiate(scenarioButtonPrefab, scenarioListContainer);
         }
         else
         {
-            // Create simple button if no prefab provided
-            buttonObj = new GameObject($"Button_{scenarioFileName}");
-            buttonObj.transform.SetParent(scenarioListContainer);
-            
-            // Add components
-            RectTransform rectTransform = buttonObj.AddComponent<RectTransform>();
+            buttonObj = new GameObject($"Button_{scenarioFileName}_{index}");
+            buttonObj.transform.SetParent(scenarioListContainer, false);
+
+            var rectTransform = buttonObj.AddComponent<RectTransform>();
             rectTransform.sizeDelta = new Vector2(300, 60);
-            
-            Image image = buttonObj.AddComponent<Image>();
+
+            var image = buttonObj.AddComponent<Image>();
             image.color = canAccess ? Color.white : Color.gray;
-            
-            Button button = buttonObj.AddComponent<Button>();
-            
-            // Add text
-            GameObject textObj = new GameObject("Text");
-            textObj.transform.SetParent(buttonObj.transform);
-            TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
-            text.text = scenarioFileName;
+
+            buttonObj.AddComponent<Button>();
+
+            var textObj = new GameObject("Text");
+            textObj.transform.SetParent(buttonObj.transform, false);
+            var text = textObj.AddComponent<TextMeshProUGUI>();
             text.alignment = TextAlignmentOptions.Center;
             text.color = Color.black;
-            
-            RectTransform textRect = textObj.GetComponent<RectTransform>();
+
+            var textRect = text.GetComponent<RectTransform>();
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
             textRect.sizeDelta = Vector2.zero;
+            textRect.anchoredPosition = Vector2.zero;
+
+            var le = buttonObj.AddComponent<LayoutElement>();
+            le.minHeight = 60;
+            le.preferredHeight = 60;
         }
 
-        // Get button component
-        Button btn = buttonObj.GetComponent<Button>();
-        
-        // Get text component (might be child)
-        TextMeshProUGUI btnText = buttonObj.GetComponentInChildren<TextMeshProUGUI>();
+        // Ensure RectTransform and reset local position to (0,0)
+        var btnRect = buttonObj.GetComponent<RectTransform>();
+        if (btnRect != null)
+        {
+            btnRect.anchoredPosition = Vector2.zero;
+            btnRect.localScale = Vector3.one;
+        }
+
+        // Ensure LayoutElement exists
+        var layoutElement = buttonObj.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = buttonObj.AddComponent<LayoutElement>();
+            layoutElement.minHeight = 60;
+            layoutElement.preferredHeight = 60;
+        }
+
+        var btn = buttonObj.GetComponent<Button>();
+        var btnText = buttonObj.GetComponentInChildren<TextMeshProUGUI>();
+
         if (btnText != null)
         {
-            // Clean up filename for display
-            string displayName = scenarioFileName.Replace(".json", "").Replace("scenario_", "").Replace("_", " ");
+            string displayName = scenarioFileName
+                .Replace(".json", "")
+                .Replace("scenario_", "")
+                .Replace("_", " ");
             btnText.text = displayName;
         }
 
-        // Set interactable based on permissions
         btn.interactable = canAccess;
 
-        // Add click listener
-        string fileName = scenarioFileName; // Capture in closure
-        btn.onClick.AddListener(() => OnScenarioButtonClicked(fileName));
+        string fileName = scenarioFileName;
+        btn.onClick.AddListener(() => OnScenarioButtonClicked(fileName, btn));
 
-        // Add tooltip if locked
-        if (!canAccess)
+        if (!canAccess && btnText != null)
         {
-            if (btnText != null)
-                btnText.text += " 🔒";
-            Debug.Log($"Scenario {scenarioFileName} is locked for this user");
+            btnText.text += " 🔒";
         }
     }
 
-    /// <summary>
-    /// Create message when no scenarios are found
-    /// </summary>
     void CreateNoScenariosMessage()
     {
-        GameObject textObj = new GameObject("NoScenariosMessage");
-        textObj.transform.SetParent(scenarioListContainer);
-        
-        TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
+        var textObj = new GameObject("NoScenariosMessage");
+        textObj.transform.SetParent(scenarioListContainer, false);
+
+        var text = textObj.AddComponent<TextMeshProUGUI>();
         text.text = "No scenarios found.\nPlease add scenario files to StreamingAssets/Scenarios/";
         text.alignment = TextAlignmentOptions.Center;
         text.fontSize = 18;
         text.color = Color.red;
-        
-        RectTransform rect = text.GetComponent<RectTransform>();
+
+        var rect = text.GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(400, 100);
+        rect.anchoredPosition = Vector2.zero;
+
+        var layoutElement = textObj.AddComponent<LayoutElement>();
+        layoutElement.minHeight = 100;
     }
 
-    /// <summary>
-    /// Called when a scenario button is clicked
-    /// </summary>
-    void OnScenarioButtonClicked(string scenarioFileName)
+    void OnScenarioButtonClicked(string scenarioFileName, Button clickedButton)
     {
-        Debug.Log($"Scenario selected: {scenarioFileName}");
+        // Unhighlight previous
+        if (lastSelectedButton != null)
+        {
+            var colors = lastSelectedButton.colors;
+            colors.normalColor = Color.white;
+            lastSelectedButton.colors = colors;
+        }
+
+        // Highlight current
+        if (clickedButton != null)
+        {
+            var colors = clickedButton.colors;
+            colors.normalColor = Color.cyan;
+            clickedButton.colors = colors;
+            lastSelectedButton = clickedButton;
+        }
 
         selectedScenarioName = scenarioFileName;
-
-        // Load scenario data
         selectedScenario = scenarioLoader.LoadScenario(scenarioFileName);
 
         if (selectedScenario == null)
@@ -242,17 +337,12 @@ public class ScenarioSelectionUI : MonoBehaviour
             return;
         }
 
-        // Show scenario details
         DisplayScenarioDetails(selectedScenario);
 
-        // Enable start button
         if (startSimulationButton != null)
             startSimulationButton.interactable = true;
     }
 
-    /// <summary>
-    /// Display detailed information about selected scenario
-    /// </summary>
     void DisplayScenarioDetails(ScenarioConfig scenario)
     {
         if (scenarioDetailsPanel != null)
@@ -267,8 +357,6 @@ public class ScenarioSelectionUI : MonoBehaviour
         if (scenarioDifficultyText != null)
         {
             scenarioDifficultyText.text = $"Difficulty: {scenario.difficulty}";
-            
-            // Color code difficulty
             switch (scenario.difficulty.ToLower())
             {
                 case "easy":
@@ -290,9 +378,6 @@ public class ScenarioSelectionUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Start the selected simulation
-    /// </summary>
     void OnStartSimulationClicked()
     {
         if (selectedScenario == null)
@@ -301,38 +386,22 @@ public class ScenarioSelectionUI : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Starting simulation: {selectedScenario.scenarioName}");
-
-        // Store selected scenario globally so MainClassroom scene can access it
         PlayerPrefs.SetString("SelectedScenario", selectedScenarioName);
         PlayerPrefs.Save();
 
-        // Load simulation scene
         SceneManager.LoadScene(simulationSceneName);
     }
 
-    /// <summary>
-    /// Logout and return to login screen
-    /// </summary>
     void OnLogoutClicked()
     {
-        Debug.Log("Logging out...");
-
-        // Clear authentication
         if (authManager != null)
             authManager.Logout();
 
-        // Reload the login scene (assuming login is in same scene, just different panels)
-        // If login is in different scene, use: SceneManager.LoadScene("LoginScene");
-        
         if (scenarioSelectionPanel != null)
             scenarioSelectionPanel.SetActive(false);
 
-        // Find and show login panel
-        LoginUI loginUI = FindObjectOfType<LoginUI>();
+        var loginUI = FindObjectOfType<LoginUI>();
         if (loginUI != null && loginUI.loginPanel != null)
-        {
             loginUI.loginPanel.SetActive(true);
-        }
     }
 }
