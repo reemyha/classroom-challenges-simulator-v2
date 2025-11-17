@@ -19,10 +19,13 @@ public class GameInitializer : MonoBehaviour
     
     [Header("Startup Settings")]
     [Tooltip("Should the simulation start automatically?")]
-    public bool autoStart = true;
+    public bool autoStart = false; // Changed to false - now requires login
     
-    [Tooltip("Which scenario to load on start")]
+    [Tooltip("Which scenario to load on start (if autoStart is true)")]
     public string startupScenarioName = "scenario_basic_classroom.json";
+    
+    [Tooltip("Should we check for login before starting?")]
+    public bool requireLogin = true;
     
     [Header("Debug Options")]
     public bool showDebugInfo = true;
@@ -67,14 +70,48 @@ public class GameInitializer : MonoBehaviour
         // Connect systems
         ConnectSystems();
 
-        // Load and start scenario if auto-start enabled
-        if (autoStart)
+        // CRITICAL: Give ScenarioLoader time to initialize before loading scenario
+        // Check if we're coming from login with a selected scenario
+        if (PlayerPrefs.HasKey("SelectedScenario"))
         {
-            LoadAndStartScenario(startupScenarioName);
+            string selectedScenario = PlayerPrefs.GetString("SelectedScenario");
+            Debug.Log($"Found selected scenario in PlayerPrefs: {selectedScenario}");
+            
+            // Use Invoke to delay loading slightly so ScenarioLoader finishes its Start()
+            Invoke(nameof(LoadScenarioFromPlayerPrefs), 0.5f);
+        }
+        // Otherwise, check if auto-start is enabled and login not required
+        else if (autoStart && !requireLogin)
+        {
+            Debug.Log("Auto-start enabled, loading default scenario...");
+            Invoke(nameof(LoadDefaultScenario), 0.5f);
+        }
+        else
+        {
+            Debug.Log("Waiting for scenario selection from login...");
         }
 
         isInitialized = true;
         Debug.Log("=== Initialization Complete ===");
+    }
+    
+    /// <summary>
+    /// Load scenario from PlayerPrefs (called after delay)
+    /// </summary>
+    void LoadScenarioFromPlayerPrefs()
+    {
+        string selectedScenario = PlayerPrefs.GetString("SelectedScenario");
+        Debug.Log($"Loading scenario from PlayerPrefs: {selectedScenario}");
+        LoadAndStartScenario(selectedScenario);
+        PlayerPrefs.DeleteKey("SelectedScenario"); // Clear after loading
+    }
+    
+    /// <summary>
+    /// Load default scenario (called after delay)
+    /// </summary>
+    void LoadDefaultScenario()
+    {
+        LoadAndStartScenario(startupScenarioName);
     }
 
     /// <summary>
@@ -142,22 +179,44 @@ public class GameInitializer : MonoBehaviour
     /// </summary>
     public void LoadAndStartScenario(string scenarioFileName)
     {
-        Debug.Log($"Loading scenario: {scenarioFileName}");
+        Debug.Log($"=== LoadAndStartScenario called with: {scenarioFileName} ===");
+
+        if (scenarioLoader == null)
+        {
+            Debug.LogError("ScenarioLoader is NULL! Cannot load scenario.");
+            return;
+        }
 
         // Load scenario from JSON
         ScenarioConfig scenario = scenarioLoader.LoadScenario(scenarioFileName);
 
         if (scenario == null)
         {
-            Debug.LogError("Failed to load scenario!");
+            Debug.LogError($"Failed to load scenario: {scenarioFileName}");
+            Debug.LogError("Check that the JSON file exists in StreamingAssets/Scenarios/");
             return;
         }
 
+        if (scenario.studentProfiles == null || scenario.studentProfiles.Count == 0)
+        {
+            Debug.LogError($"Scenario '{scenario.scenarioName}' has NO STUDENTS!");
+            Debug.LogError("Check the JSON file - studentProfiles array might be empty.");
+            return;
+        }
+
+        Debug.Log($"Scenario loaded successfully: {scenario.scenarioName}");
+        Debug.Log($"Student count in scenario: {scenario.studentProfiles.Count}");
+
         // Pass scenario to classroom manager
+        if (classroomManager == null)
+        {
+            Debug.LogError("ClassroomManager is NULL! Cannot spawn students.");
+            return;
+        }
+
         classroomManager.LoadScenario(scenario);
 
-        Debug.Log($"Scenario '{scenario.scenarioName}' loaded successfully!");
-        Debug.Log($"Students in classroom: {scenario.studentProfiles.Count}");
+        Debug.Log($"Scenario '{scenario.scenarioName}' started with {scenario.studentProfiles.Count} students!");
     }
 
     /// <summary>

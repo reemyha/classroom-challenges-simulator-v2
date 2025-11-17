@@ -2927,8 +2927,9 @@ MonoBehaviour:
   classroomManager: {fileID: 1122506674}
   scenarioLoader: {fileID: 397412499}
   teacherUI: {fileID: 315267416}
-  autoStart: 1
+  autoStart: 0
   startupScenarioName: scenario_basic_classroom.json
+  requireLogin: 1
   showDebugInfo: 1
   restartKey: 114
   quitKey: 27
