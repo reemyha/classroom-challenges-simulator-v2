@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
+
 /// <summary>
 /// Manages user authentication with MongoDB database.
 /// Handles login, password verification, and session management.
@@ -15,7 +16,11 @@ public class AuthenticationManager : MonoBehaviour
     [Header("MongoDB Connection")]
     [Tooltip("MongoDB connection string - example: mongodb://localhost:27017")]
     public string connectionString = "mongodb://localhost:27017";
-    
+
+    [Header("Dev / Offline Mode")]
+    public bool allowOfflineLoginIfMongoFails = true;
+    private bool mongoReady = false;
+
     [Tooltip("Name of the database")]
     public string databaseName = "ClassroomSimulator";
     
@@ -72,13 +77,24 @@ public class AuthenticationManager : MonoBehaviour
             Debug.Log("MongoDB connection successful!");
             
             // Create default admin user if database is empty
+            //CreateDefaultAdminIfNeeded();
+            //mongoReady = true;
+
+            mongoReady = true;
+
+            // רק אם יש חיבור אמיתי - ננסה ליצור אדמין
             CreateDefaultAdminIfNeeded();
+
+
         }
         catch (Exception e)
         {
             Debug.LogError($"MongoDB connection failed: {e.Message}");
             Debug.LogError("Make sure MongoDB is running on your machine!");
+            mongoReady = false;
+
         }
+
     }
 
     /// <summary>
@@ -121,6 +137,24 @@ public class AuthenticationManager : MonoBehaviour
     /// </summary>
     public async Task<LoginResponse> LoginAsync(string username, string password)
     {
+        if (!mongoReady || usersCollection == null)
+        {
+            if (allowOfflineLoginIfMongoFails)
+            {
+                // Dev login – allow admin/admin123 locally
+                bool ok = (username == "admin" && password == "admin123");
+                return new LoginResponse
+                {
+                    Success = ok,
+                    Message = ok ? "Offline login successful" : "Offline login failed",
+                    User = ok ? new UserModel { Username = "admin", FullName = "Offline Admin", Role = UserRole.Administrator, IsActive = true } : null,
+                    SessionToken = ok ? GenerateSessionToken(new UserModel { Username = "admin" }) : null
+                };
+            }
+
+            return new LoginResponse { Success = false, Message = "Database unavailable" };
+        }
+
         LoginResponse response = new LoginResponse();
 
         try
