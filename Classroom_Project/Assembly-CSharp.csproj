@@ -60,15 +60,25 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\UI\login_ui.cs" />
+    <Compile Include="Assets\Scripts\Utilities\ClassroomFurnitureBuilder.cs" />
+    <Compile Include="Assets\Scripts\Classroom\ClassMetrics.cs" />
     <Compile Include="Assets\Scripts\Utilities\scenario_loader.cs" />
+    <Compile Include="Assets\Scripts\Classroom\StudentSpawner.cs" />
     <Compile Include="Assets\Scripts\Utilities\user_model.cs" />
     <Compile Include="Assets\Scripts\UI\scenario_selection_ui.cs" />
     <Compile Include="Assets\Scripts\Core\classroom_manager.cs" />
+    <Compile Include="Assets\Scripts\Teacher\BagItemType.cs" />
+    <Compile Include="Assets\Scripts\Students\StudentAgent.cs" />
+    <Compile Include="Assets\Scripts\Students\EmotionVector.cs" />
+    <Compile Include="Assets\Scripts\Utilities\ClassroomBuilder.cs" />
     <Compile Include="Assets\Scripts\Utilities\game_initializer.cs" />
-    <Compile Include="Assets\Scripts\UI\teacher_ui.cs" />
-    <Compile Include="Assets\Scripts\Core\emotion_vector.cs" />
-    <Compile Include="Assets\Scripts\Core\student_agent.cs" />
+    <Compile Include="Assets\Scripts\Students\StudentState.cs" />
+    <Compile Include="Assets\Scripts\Teacher\TeacherBagUI.cs" />
+    <Compile Include="Assets\Scripts\Teacher\TeacherVoiceRecorderUI.cs" />
+    <Compile Include="Assets\Scripts\Classroom\ScenarioRuntime.cs" />
     <Compile Include="Assets\Scripts\Utilities\camera_controller.cs" />
+    <Compile Include="Assets\Scripts\Students\StudentVisuals.cs" />
+    <Compile Include="Assets\Scripts\Teacher\TeacherUI.cs" />
     <Compile Include="Assets\Scripts\UI\student_visual_feedback.cs" />
     <Compile Include="Assets\Scripts\Utilities\auth_manager.cs" />
   </ItemGroup>
