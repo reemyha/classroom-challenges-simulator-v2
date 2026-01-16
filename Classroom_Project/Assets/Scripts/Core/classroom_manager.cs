@@ -33,8 +33,24 @@ public class ClassroomManager : MonoBehaviour
     void Start()
     {
         InitializeSession();
-        LoadScenario(currentScenario);
+
+        // Load scenario chosen in ScenarioSelectionUI
+        string selectedScenario = PlayerPrefs.GetString("SelectedScenario", "");
+
+        ScenarioLoader loader = FindObjectOfType<ScenarioLoader>();
+
+        if (!string.IsNullOrEmpty(selectedScenario) && loader != null)
+        {
+            ScenarioConfig loadedScenario = loader.LoadScenario(selectedScenario);
+            LoadScenario(loadedScenario);
+        }
+        else
+        {
+            Debug.LogWarning("No scenario selected, using inspector scenario");
+            LoadScenario(currentScenario);
+        }
     }
+
 
     void Update()
     {
@@ -118,6 +134,35 @@ public class ClassroomManager : MonoBehaviour
                 activeStudents.Add(student);
             }
         }
+    }
+    public void ExecuteBagItem(BagItemType item)
+    {
+        // Classwide effect using your existing system
+        switch (item)
+        {
+            case BagItemType.Ruler:
+                // "Strict": may raise attention but increases negative emotion a bit
+                ExecuteClasswideAction(ActionType.Yell, "Teacher used ruler to regain attention");
+                break;
+
+            case BagItemType.Game:
+                // Fun: reduces boredom / improves mood
+                ExecuteClasswideAction(ActionType.GiveBreak, "Quick class game");
+                ExecuteClasswideAction(ActionType.Praise, "Encouraged participation");
+                break;
+
+            case BagItemType.Book:
+                // Structure: call students to participate
+                ExecuteClasswideAction(ActionType.CallToBoard, "Read together from book");
+                break;
+
+            case BagItemType.Music:
+                // Calm: give break
+                ExecuteClasswideAction(ActionType.GiveBreak, "Calming music in background");
+                break;
+        }
+
+        Debug.Log($"Bag item used: {item}");
     }
 
     /// <summary>
@@ -279,6 +324,8 @@ public class ClassroomManager : MonoBehaviour
         return engagementScore + disruptionPenalty + interventionBalance + efficiencyBonus;
     }
 
+
+
     /// <summary>
     /// Placeholder for database persistence
     /// </summary>
@@ -300,6 +347,7 @@ public class ScenarioConfig
     public string difficulty;
     public List<StudentProfile> studentProfiles;
 }
+
 
 /// <summary>
 /// Individual student configuration profile
