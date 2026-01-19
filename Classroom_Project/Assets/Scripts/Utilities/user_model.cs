@@ -72,18 +72,4 @@ public enum UserRole
     Administrator   // Can create users and manage system
 }
 
-[Serializable]
-public class LoginRequest
-{
-    public string username;
-    public string password;
-}
 
-[Serializable]
-public class LoginResponse
-{
-    public bool success;
-    public string message;
-    public UserModel user;
-    public string sessionToken; // For maintaining login state
-}

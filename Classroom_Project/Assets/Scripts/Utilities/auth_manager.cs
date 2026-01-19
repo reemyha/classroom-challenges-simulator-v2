@@ -6,18 +6,13 @@ using System.Text;
 
 public class AuthenticationManager : MonoBehaviour
 {
-    [Header("Backend API (WebGL)")]
-    [Tooltip("Example: https://your-vercel-app.vercel.app")]
-    public string apiBaseUrl = "http://localhost:3000";
-
-    [Header("Dev / Offline Mode")]
-    public bool allowOfflineLogin = true;
+    [Header("Backend API")]
+    public string apiBaseUrl = "backendforprojectvercel.vercel.app";
 
     [Header("Current Session")]
     public UserModel currentUser;
     public bool isLoggedIn = false;
 
-    // Singleton
     public static AuthenticationManager Instance { get; private set; }
 
     void Awake()
@@ -31,13 +26,6 @@ public class AuthenticationManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    // ---------------------------
-    // PUBLIC API (WebGL-safe)
-    // ---------------------------
-
-    /// <summary>
-    /// Login via backend API. WebGL safe: coroutine + UnityWebRequest.
-    /// </summary>
     public IEnumerator LoginCoroutine(
         string username,
         string password,
@@ -45,51 +33,14 @@ public class AuthenticationManager : MonoBehaviour
         Action<string> onError
     )
     {
-        // Validate input early
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
             onError?.Invoke("Username and password are required");
             yield break;
         }
 
-        // Optional offline/dev admin
-        if (allowOfflineLogin)
-        {
-            // dev backdoor: admin/admin
-            if (username == "admin" && password == "admin")
-            {
-                var user = new UserModel
-                {
-                    username = "admin",
-                    fullName = "Dev Admin",
-                    role = UserRole.Administrator,
-                    isActive = true,
-                    sessionCount = 0,
-                    allowedScenarios = Array.Empty<string>()
-                };
-
-                currentUser = user;
-                isLoggedIn = true;
-
-                onSuccess?.Invoke(new LoginResponse
-                {
-                    success = true,
-                    message = "Admin dev login successful",
-                    user = user,
-                    sessionToken = "dev-token"
-                });
-                yield break;
-            }
-
-            // offline admin: admin/admin123 (when backend unavailable)
-            // We'll still TRY backend first; fallback happens if request fails.
-        }
-
-        // Build request body
         var reqBody = new LoginRequest { username = username, password = password };
         string json = JsonUtility.ToJson(reqBody);
-
-        // IMPORTANT: /api/login is your backend route
         string url = CombineUrl(apiBaseUrl, "/api/login");
 
         using (var req = new UnityWebRequest(url, "POST"))
@@ -98,78 +49,112 @@ public class AuthenticationManager : MonoBehaviour
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
             req.SetRequestHeader("Content-Type", "application/json");
-
-            // WebGL: ensure no stuck requests
             req.timeout = 15;
 
             yield return req.SendWebRequest();
 
-            // Network / CORS / server down
             if (req.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError($"Login request failed: {req.error}\n{req.downloadHandler.text}");
-
-                if (allowOfflineLogin && username == "admin" && password == "admin123")
-                {
-                    var offlineUser = new UserModel
-                    {
-                        username = "admin",
-                        fullName = "Offline Admin",
-                        role = UserRole.Administrator,
-                        isActive = true,
-                        sessionCount = 0,
-                        allowedScenarios = Array.Empty<string>()
-                    };
-
-                    currentUser = offlineUser;
-                    isLoggedIn = true;
-
-                    onSuccess?.Invoke(new LoginResponse
-                    {
-                        success = true,
-                        message = "Offline login successful (backend unavailable)",
-                        user = offlineUser,
-                        sessionToken = "offline-token"
-                    });
-                    yield break;
-                }
-
-                onError?.Invoke("Login failed (server unreachable or CORS blocked)");
+                Debug.LogError($"Login failed: {req.error}");
+                onError?.Invoke("Login failed (server unreachable)");
                 yield break;
             }
 
-            // Parse JSON response
-            // NOTE: JsonUtility needs matching field names (success/message/user/sessionToken)
             string respJson = req.downloadHandler.text;
+            Debug.Log($"Server response: {respJson}");
 
             LoginResponse response;
             try
             {
                 response = JsonUtility.FromJson<LoginResponse>(respJson);
             }
-            catch
+            catch (Exception e)
             {
-                Debug.LogError($"Failed parsing login response: {respJson}");
+                Debug.LogError($"Failed parsing response: {e.Message}");
                 onError?.Invoke("Bad server response");
-                yield break;
-            }
-
-            if (response == null)
-            {
-                onError?.Invoke("Empty server response");
                 yield break;
             }
 
             if (!response.success)
             {
-                onError?.Invoke(string.IsNullOrEmpty(response.message) ? "Invalid username or password" : response.message);
+                onError?.Invoke(response.message ?? "Login failed");
                 yield break;
             }
 
-            // Success
             currentUser = response.user;
             isLoggedIn = true;
+            Debug.Log($"Login successful: {currentUser.username}");
+            onSuccess?.Invoke(response);
+        }
+    }
 
+    public IEnumerator RegisterCoroutine(
+        string username,
+        string password,
+        string email,
+        string fullName,
+        UserRole role,
+        Action<RegisterResponse> onSuccess,
+        Action<string> onError
+    )
+    {
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        {
+            onError?.Invoke("Username and password are required");
+            yield break;
+        }
+
+        var reqBody = new RegisterRequest
+        {
+            username = username,
+            password = password,
+            email = email,
+            fullName = fullName,
+            role = (int)role
+        };
+
+        string json = JsonUtility.ToJson(reqBody);
+        string url = CombineUrl(apiBaseUrl, "/api/register");
+
+        using (var req = new UnityWebRequest(url, "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            req.timeout = 15;
+
+            yield return req.SendWebRequest();
+
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError($"Registration failed: {req.error}");
+                onError?.Invoke("Registration failed (server unreachable)");
+                yield break;
+            }
+
+            string respJson = req.downloadHandler.text;
+            Debug.Log($"Registration response: {respJson}");
+
+            RegisterResponse response;
+            try
+            {
+                response = JsonUtility.FromJson<RegisterResponse>(respJson);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Failed parsing response: {e.Message}");
+                onError?.Invoke("Bad server response");
+                yield break;
+            }
+
+            if (!response.success)
+            {
+                onError?.Invoke(response.message ?? "Registration failed");
+                yield break;
+            }
+
+            Debug.Log($"Registration successful: {username}");
             onSuccess?.Invoke(response);
         }
     }
@@ -187,18 +172,48 @@ public class AuthenticationManager : MonoBehaviour
         return currentUser.CanAccessScenario(scenarioName);
     }
 
-    // ---------------------------
-    // Helpers
-    // ---------------------------
-
     static string CombineUrl(string baseUrl, string path)
     {
         if (string.IsNullOrEmpty(baseUrl)) return path ?? "";
         if (string.IsNullOrEmpty(path)) return baseUrl;
-
         if (baseUrl.EndsWith("/")) baseUrl = baseUrl.Substring(0, baseUrl.Length - 1);
         if (!path.StartsWith("/")) path = "/" + path;
-
         return baseUrl + path;
     }
+}
+
+
+
+[System.Serializable]
+public class LoginRequest
+{
+    public string username;
+    public string password;
+}
+
+
+[System.Serializable]
+public class LoginResponse
+{
+    public bool success;
+    public string message;
+    public UserModel user;
+    public string sessionToken;
+}
+
+[System.Serializable]
+public class RegisterRequest
+{
+    public string username;
+    public string password;
+    public string email;
+    public string fullName;
+    public int role;
+}
+
+[System.Serializable]
+public class RegisterResponse
+{
+    public bool success;
+    public string message;
 }
