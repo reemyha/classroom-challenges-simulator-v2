@@ -1,0 +1,477 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections;
+using System.Text.RegularExpressions;
+
+/// <summary>
+/// Handles user registration interface.
+/// Validates input and creates new user accounts in MongoDB.
+/// </summary>
+public class RegistrationUI : MonoBehaviour
+{
+    [Header("UI References")]
+    [Tooltip("Main registration panel")]
+    public GameObject registrationPanel;
+    
+    [Tooltip("Input fields")]
+    public TMP_InputField usernameInput;
+    public TMP_InputField passwordInput;
+    public TMP_InputField confirmPasswordInput;
+    public TMP_InputField emailInput;
+    public TMP_InputField fullNameInput;
+    
+    [Tooltip("Role selection dropdown")]
+    public TMP_Dropdown roleDropdown;
+    
+    [Tooltip("Buttons")]
+    public Button registerButton;
+    public Button backToLoginButton;
+    
+    [Tooltip("Message display")]
+    public TextMeshProUGUI messageText;
+    
+    [Tooltip("Loading indicator")]
+    public GameObject loadingIndicator;
+
+    [Header("Scene References")]
+    [Tooltip("Login panel to return to")]
+    public GameObject loginPanel;
+
+    [Header("Visual Settings")]
+    public Color errorColor = Color.red;
+    public Color successColor = Color.green;
+    public Color warningColor = Color.yellow;
+    public Color normalColor = Color.white;
+
+    // References
+    private AuthenticationManager authManager;
+    private bool isProcessingRegistration = false;
+
+    void Start()
+    {
+        // Find authentication manager
+        authManager = AuthenticationManager.Instance;
+        
+        if (authManager == null)
+        {
+            Debug.LogError("AuthenticationManager not found!");
+            return;
+        }
+
+        // Set up buttons
+        if (registerButton != null)
+            registerButton.onClick.AddListener(OnRegisterButtonClicked);
+        
+        if (backToLoginButton != null)
+            backToLoginButton.onClick.AddListener(OnBackToLoginClicked);
+
+        // Setup role dropdown
+        SetupRoleDropdown();
+
+        // Hide loading indicator
+        if (loadingIndicator != null)
+            loadingIndicator.SetActive(false);
+
+        // Hide registration panel initially
+        if (registrationPanel != null)
+            registrationPanel.SetActive(false);
+
+        // Clear message
+        ShowMessage("", normalColor);
+    }
+
+    /// <summary>
+    /// Setup the role dropdown with available roles
+    /// </summary>
+    void SetupRoleDropdown()
+    {
+        if (roleDropdown != null)
+        {
+            roleDropdown.ClearOptions();
+            
+            // Add role options
+            roleDropdown.AddOptions(new System.Collections.Generic.List<string>
+            {
+                "Student (Trainee Teacher)",
+                "Instructor (Supervisor)",
+                "Administrator"
+            });
+            
+            // Default to Student
+            roleDropdown.value = 0;
+        }
+    }
+
+    /// <summary>
+    /// Show registration panel
+    /// </summary>
+    public void ShowRegistrationPanel()
+    {
+        if (registrationPanel != null)
+            registrationPanel.SetActive(true);
+        
+        if (loginPanel != null)
+            loginPanel.SetActive(false);
+
+        // Clear all fields
+        ClearFields();
+        ShowMessage("Create a new account", normalColor);
+    }
+
+    /// <summary>
+    /// Hide registration panel and return to login
+    /// </summary>
+    void OnBackToLoginClicked()
+    {
+        if (registrationPanel != null)
+            registrationPanel.SetActive(false);
+        
+        if (loginPanel != null)
+            loginPanel.SetActive(true);
+
+        ClearFields();
+    }
+
+    /// <summary>
+    /// Clear all input fields
+    /// </summary>
+    void ClearFields()
+    {
+        if (usernameInput != null) usernameInput.text = "";
+        if (passwordInput != null) passwordInput.text = "";
+        if (confirmPasswordInput != null) confirmPasswordInput.text = "";
+        if (emailInput != null) emailInput.text = "";
+        if (fullNameInput != null) fullNameInput.text = "";
+        if (roleDropdown != null) roleDropdown.value = 0;
+    }
+
+    /// <summary>
+    /// Called when register button is clicked
+    /// </summary>
+    void OnRegisterButtonClicked()
+    {
+        if (isProcessingRegistration)
+        {
+            Debug.Log("Registration already in progress...");
+            return;
+        }
+
+        // Get input values
+        string username = usernameInput.text.Trim();
+        string password = passwordInput.text;
+        string confirmPassword = confirmPasswordInput.text;
+        string email = emailInput.text.Trim();
+        string fullName = fullNameInput.text.Trim();
+        UserRole role = GetSelectedRole();
+
+        // Validate input
+        string validationError = ValidateInput(username, password, confirmPassword, email, fullName);
+        
+        if (!string.IsNullOrEmpty(validationError))
+        {
+            ShowMessage(validationError, errorColor);
+            return;
+        }
+
+        // Start registration process
+        ProcessRegistration(username, password, email, fullName, role);
+    }
+
+    /// <summary>
+    /// Validate all registration input
+    /// </summary>
+    string ValidateInput(string username, string password, string confirmPassword, string email, string fullName)
+    {
+        // Username validation
+        if (string.IsNullOrEmpty(username))
+            return "Username is required";
+        
+        if (username.Length < 3)
+            return "Username must be at least 3 characters";
+        
+        if (username.Length > 20)
+            return "Username must be less than 20 characters";
+        
+        if (!Regex.IsMatch(username, @"^[a-zA-Z0-9_]+$"))
+            return "Username can only contain letters, numbers, and underscores";
+
+        // Password validation
+        if (string.IsNullOrEmpty(password))
+            return "Password is required";
+        
+        if (password.Length < 6)
+            return "Password must be at least 6 characters";
+        
+        if (password.Length > 50)
+            return "Password must be less than 50 characters";
+
+        // Confirm password
+        if (password != confirmPassword)
+            return "Passwords do not match";
+
+        // Email validation
+        if (string.IsNullOrEmpty(email))
+            return "Email is required";
+        
+        if (!IsValidEmail(email))
+            return "Please enter a valid email address";
+
+        // Full name validation
+        if (string.IsNullOrEmpty(fullName))
+            return "Full name is required";
+        
+        if (fullName.Length < 2)
+            return "Full name must be at least 2 characters";
+
+        // All validation passed
+        return null;
+    }
+
+    /// <summary>
+    /// Validate email format
+    /// </summary>
+    bool IsValidEmail(string email)
+    {
+        string pattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+        return Regex.IsMatch(email, pattern);
+    }
+
+    /// <summary>
+    /// Get selected role from dropdown
+    /// </summary>
+    UserRole GetSelectedRole()
+    {
+        if (roleDropdown == null)
+            return UserRole.Student;
+
+        switch (roleDropdown.value)
+        {
+            case 0: return UserRole.Student;
+            case 1: return UserRole.Instructor;
+            case 2: return UserRole.Administrator;
+            default: return UserRole.Student;
+        }
+    }
+
+    /// <summary>
+    /// Process registration using coroutine
+    /// </summary>
+    void ProcessRegistration(string username, string password, string email, string fullName, UserRole role)
+    {
+        StartCoroutine(ProcessRegistrationCoroutine(username, password, email, fullName, role));
+    }
+
+    IEnumerator ProcessRegistrationCoroutine(string username, string password, string email, string fullName, UserRole role)
+    {
+        isProcessingRegistration = true;
+
+        // Show loading state
+        ShowMessage("Creating account...", normalColor);
+        if (loadingIndicator != null)
+            loadingIndicator.SetActive(true);
+        if (registerButton != null)
+            registerButton.interactable = false;
+
+        bool registrationComplete = false;
+        bool registrationSuccess = false;
+        string errorMessage = "";
+
+        // Call authentication manager to register user
+        yield return authManager.RegisterCoroutine(
+            username,
+            password,
+            email,
+            fullName,
+            role,
+            (response) => {
+                registrationComplete = true;
+                registrationSuccess = true;
+            },
+            (error) => {
+                registrationComplete = true;
+                registrationSuccess = false;
+                errorMessage = error;
+            }
+        );
+
+        // Wait for completion
+        yield return new WaitUntil(() => registrationComplete);
+
+        if (registrationSuccess)
+        {
+            OnRegistrationSuccess(username, password);
+        }
+        else
+        {
+            OnRegistrationFailure(string.IsNullOrEmpty(errorMessage) ? "Registration failed. Please try again." : errorMessage);
+        }
+
+        isProcessingRegistration = false;
+        
+        // Hide loading state
+        if (loadingIndicator != null)
+            loadingIndicator.SetActive(false);
+        if (registerButton != null)
+            registerButton.interactable = true;
+    }
+
+    /// <summary>
+    /// Handle successful registration
+    /// </summary>
+    void OnRegistrationSuccess(string username, string password)
+    {
+        Debug.Log($"Registration successful for: {username}");
+        
+        ShowMessage($"✓ Account created successfully!\nWelcome, {fullNameInput.text}!", successColor);
+
+        // Auto-login after 2 seconds
+        Invoke(nameof(AutoLogin), 2f);
+    }
+
+    /// <summary>
+    /// Automatically login after successful registration
+    /// </summary>
+    void AutoLogin()
+    {
+        StartCoroutine(AutoLoginCoroutine());
+    }
+
+    IEnumerator AutoLoginCoroutine()
+    {
+        string username = usernameInput.text.Trim();
+        string password = passwordInput.text;
+
+        ShowMessage("Logging you in...", normalColor);
+
+        bool loginComplete = false;
+        bool loginSuccess = false;
+
+        yield return authManager.LoginCoroutine(
+            username,
+            password,
+            (response) => {
+                loginComplete = true;
+                loginSuccess = true;
+            },
+            (error) => {
+                loginComplete = true;
+                loginSuccess = false;
+                Debug.LogError($"Auto-login failed: {error}");
+            }
+        );
+
+        yield return new WaitUntil(() => loginComplete);
+
+        if (loginSuccess)
+        {
+            // Hide registration panel
+            if (registrationPanel != null)
+                registrationPanel.SetActive(false);
+
+            // Show scenario selection
+            TransitionToScenarioSelection();
+        }
+        else
+        {
+            // If auto-login fails, just go back to login screen
+            OnBackToLoginClicked();
+            ShowMessage("Account created! Please login.", successColor);
+        }
+    }
+
+    /// <summary>
+    /// Handle registration failure
+    /// </summary>
+    void OnRegistrationFailure(string message)
+    {
+        Debug.Log($"Registration failed: {message}");
+        ShowMessage(message, errorColor);
+    }
+
+    /// <summary>
+    /// Transition to scenario selection screen
+    /// </summary>
+    void TransitionToScenarioSelection()
+    {
+        // Find scenario selection UI
+        ScenarioSelectionUI scenarioUI = FindObjectOfType<ScenarioSelectionUI>();
+        
+        if (scenarioUI != null && scenarioUI.scenarioSelectionPanel != null)
+        {
+            scenarioUI.scenarioSelectionPanel.SetActive(true);
+            scenarioUI.RefreshScenarioList();
+        }
+    }
+
+    /// <summary>
+    /// Display a message to the user
+    /// </summary>
+    void ShowMessage(string message, Color color)
+    {
+        if (messageText != null)
+        {
+            messageText.text = message;
+            messageText.color = color;
+        }
+    }
+
+    /// <summary>
+    /// Show password strength indicator (optional enhancement)
+    /// </summary>
+    public void OnPasswordChanged()
+    {
+        if (passwordInput == null) return;
+
+        string password = passwordInput.text;
+        
+        if (string.IsNullOrEmpty(password))
+        {
+            // No feedback if empty
+            return;
+        }
+
+        // Calculate password strength
+        int strength = CalculatePasswordStrength(password);
+        
+        // Show strength indicator
+        string strengthText = "";
+        Color strengthColor = normalColor;
+
+        if (strength < 2)
+        {
+            strengthText = "Weak password";
+            strengthColor = errorColor;
+        }
+        else if (strength < 4)
+        {
+            strengthText = "Moderate password";
+            strengthColor = warningColor;
+        }
+        else
+        {
+            strengthText = "Strong password";
+            strengthColor = successColor;
+        }
+
+        // You could show this in a separate text field if desired
+        Debug.Log($"Password strength: {strengthText}");
+    }
+
+    /// <summary>
+    /// Calculate password strength (0-5 scale)
+    /// </summary>
+    int CalculatePasswordStrength(string password)
+    {
+        int strength = 0;
+
+        if (password.Length >= 8) strength++;
+        if (password.Length >= 12) strength++;
+        if (Regex.IsMatch(password, @"[a-z]")) strength++; // Lowercase
+        if (Regex.IsMatch(password, @"[A-Z]")) strength++; // Uppercase
+        if (Regex.IsMatch(password, @"\d")) strength++;     // Numbers
+        if (Regex.IsMatch(password, @"[^a-zA-Z0-9]")) strength++; // Special chars
+
+        return Mathf.Min(strength, 5);
+    }
+}

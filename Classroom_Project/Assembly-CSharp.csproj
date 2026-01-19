@@ -63,6 +63,7 @@
     <Compile Include="Assets\Scripts\Utilities\ClassroomFurnitureBuilder.cs" />
     <Compile Include="Assets\Scripts\Classroom\ClassMetrics.cs" />
     <Compile Include="Assets\Scripts\Students\StudentSpawner.cs" />
+    <Compile Include="Assets\Scripts\UI\registration_ui.cs" />
     <Compile Include="Assets\Scripts\Utilities\scenario_loader.cs" />
     <Compile Include="Assets\Scripts\Utilities\user_model.cs" />
     <Compile Include="Assets\Scripts\UI\scenario_selection_ui.cs" />
