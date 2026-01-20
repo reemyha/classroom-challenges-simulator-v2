@@ -5,4 +5,12 @@ Logs/
 UserSettings/
 Build/
 Builds/
-Library/
+
+# Visual Studio / Unity generated
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+.vs/
