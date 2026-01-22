@@ -1,5 +1,3 @@
-
-// filepath: c:\Users\micha\Classroom_Project\Classroom-Challenges-Simulator\Classroom_Project\Assets\Scripts\UI\scenario_selection_ui.cs
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -63,6 +61,7 @@ public class ScenarioSelectionUI : MonoBehaviour
     private string selectedScenarioName;
     private ScenarioConfig selectedScenario;
     private Button lastSelectedButton;
+    private Dictionary<Button, ColorBlock> originalButtonColors = new Dictionary<Button, ColorBlock>();
 
     // NOTE: no constructors, no RectOffset field initializers anywhere
 
@@ -155,7 +154,7 @@ public class ScenarioSelectionUI : MonoBehaviour
         {
             var user = authManager.currentUser;
             //userInfoText.text = $"Welcome, {user.FullName}\nRole: {user.Role}\nSessions: {user.SessionCount}";
-            userInfoText.text = $"Welcome, {user.fullName}\nRole: {user.role}\nSessions: {user.sessionCount}";
+            userInfoText.text = $"ברוך הבא, {user.fullName}\nתפקיד: {GetRoleHebrew(user.role)}\nשיעורים: {user.sessionCount}";
 
         }
     }
@@ -190,6 +189,7 @@ public class ScenarioSelectionUI : MonoBehaviour
         lastSelectedButton = null;
         selectedScenario = null;
         selectedScenarioName = null;
+        originalButtonColors.Clear();
         if (startSimulationButton != null)
             startSimulationButton.interactable = false;
 
@@ -295,6 +295,12 @@ public class ScenarioSelectionUI : MonoBehaviour
 
         btn.interactable = canAccess;
 
+        // Store original button colors
+        if (!originalButtonColors.ContainsKey(btn))
+        {
+            originalButtonColors[btn] = btn.colors;
+        }
+
         string fileName = scenarioFileName;
         btn.onClick.AddListener(() => OnScenarioButtonClicked(fileName, btn));
 
@@ -310,7 +316,7 @@ public class ScenarioSelectionUI : MonoBehaviour
         textObj.transform.SetParent(scenarioListContainer, false);
 
         var text = textObj.AddComponent<TextMeshProUGUI>();
-        text.text = "No scenarios found.\nPlease add scenario files to StreamingAssets/Scenarios/";
+        text.text = "לא נמצאו תרחישים.\nאנא הוסף קבצי תרחישים ל-StreamingAssets/Scenarios/";
         text.alignment = TextAlignmentOptions.Center;
         text.fontSize = 18;
         text.color = Color.red;
@@ -325,36 +331,45 @@ public class ScenarioSelectionUI : MonoBehaviour
 
     void OnScenarioButtonClicked(string scenarioFileName, Button clickedButton)
     {
-        // Unhighlight previous
-        if (lastSelectedButton != null)
+        // Reset all buttons to their original colors
+        foreach (var kvp in originalButtonColors)
         {
-            var colors = lastSelectedButton.colors;
-            colors.normalColor = Color.white;
-            lastSelectedButton.colors = colors;
+            if (kvp.Key != null)
+            {
+                kvp.Key.colors = kvp.Value;
+            }
         }
 
-        // Highlight current
+        // Highlight the clicked button
         if (clickedButton != null)
         {
             var colors = clickedButton.colors;
-            colors.normalColor = Color.cyan;
+            Color selectedColor = new Color(0.4f, 0.8f, 1f); // Light cyan/blue color
+            
+            // Set all color states to the selected color so it stays highlighted
+            colors.normalColor = selectedColor;
+            colors.highlightedColor = selectedColor;
+            colors.pressedColor = selectedColor;
+            colors.selectedColor = selectedColor;
+            
             clickedButton.colors = colors;
             lastSelectedButton = clickedButton;
         }
 
         selectedScenarioName = scenarioFileName;
-        selectedScenario = scenarioLoader.LoadScenario(scenarioFileName);
-
-        if (selectedScenario == null)
-        {
-            Debug.LogError($"Failed to load scenario: {scenarioFileName}");
-            return;
-        }
-
-        DisplayScenarioDetails(selectedScenario);
-
-        if (startSimulationButton != null)
-            startSimulationButton.interactable = true;
+        scenarioLoader.LoadScenario(scenarioFileName,
+            onSuccess: (loadedScenario) => {
+                selectedScenario = loadedScenario;
+                DisplayScenarioDetails(selectedScenario);
+                if (startSimulationButton != null)
+                    startSimulationButton.interactable = true;
+            },
+            onError: (error) => {
+                Debug.LogError($"Failed to load scenario: {scenarioFileName}. Error: {error}");
+                selectedScenario = null;
+                if (startSimulationButton != null)
+                    startSimulationButton.interactable = false;
+            });
     }
 
     void DisplayScenarioDetails(ScenarioConfig scenario)
@@ -370,7 +385,8 @@ public class ScenarioSelectionUI : MonoBehaviour
 
         if (scenarioDifficultyText != null)
         {
-            scenarioDifficultyText.text = $"Difficulty: {scenario.difficulty}";
+            string difficultyHebrew = GetDifficultyHebrew(scenario.difficulty);
+            scenarioDifficultyText.text = $"רמת קושי: {difficultyHebrew}";
             switch (scenario.difficulty.ToLower())
             {
                 case "easy":
@@ -388,7 +404,7 @@ public class ScenarioSelectionUI : MonoBehaviour
         if (scenarioStudentCountText != null)
         {
             int studentCount = scenario.studentProfiles?.Count ?? 0;
-            scenarioStudentCountText.text = $"Students: {studentCount}";
+            scenarioStudentCountText.text = $"תלמידים: {studentCount}";
         }
     }
 
@@ -417,5 +433,33 @@ public class ScenarioSelectionUI : MonoBehaviour
         var loginUI = FindObjectOfType<LoginUI>();
         if (loginUI != null && loginUI.loginPanel != null)
             loginUI.loginPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Get Hebrew translation for difficulty level
+    /// </summary>
+    string GetDifficultyHebrew(string difficulty)
+    {
+        switch (difficulty.ToLower())
+        {
+            case "easy": return "קל";
+            case "medium": return "בינוני";
+            case "hard": return "קשה";
+            default: return difficulty;
+        }
+    }
+
+    /// <summary>
+    /// Get Hebrew translation for user role
+    /// </summary>
+    string GetRoleHebrew(UserRole role)
+    {
+        switch (role)
+        {
+            case UserRole.Student: return "סטודנט";
+            case UserRole.Instructor: return "מדריך";
+            case UserRole.Administrator: return "מנהל מערכת";
+            default: return role.ToString();
+        }
     }
 }

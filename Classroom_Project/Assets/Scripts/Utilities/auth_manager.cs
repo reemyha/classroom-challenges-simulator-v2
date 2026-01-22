@@ -7,7 +7,7 @@ using System.Text;
 public class AuthenticationManager : MonoBehaviour
 {
     [Header("Backend API")]
-    public string apiBaseUrl = "backendforprojectvercel.vercel.app";
+    public string apiBaseUrl = "https://backend-for-project.onrender.com/";
 
     [Header("Current Session")]
     public UserModel currentUser;

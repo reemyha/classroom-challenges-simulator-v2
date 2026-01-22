@@ -12,8 +12,8 @@ using System.Runtime.InteropServices;
 public class WebSpeechRecognition : MonoBehaviour
 {
     [Header("Settings")]
-    [Tooltip("Language code (e.g., 'en-US', 'he-IL', 'es-ES')")]
-    public string language = "en-US";
+    [Tooltip("Language code (e.g., 'en-US', 'he-IL' for Hebrew, 'es-ES')")]
+    public string language = "he-IL"; // Hebrew by default
 
     [Tooltip("Maximum recording time in seconds")]
     public int maxRecordingTime = 15;

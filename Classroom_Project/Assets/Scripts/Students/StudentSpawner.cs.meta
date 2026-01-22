@@ -4,7 +4,7 @@ MonoImporter:
   externalObjects: {}
   serializedVersion: 2
   defaultReferences:
-  - studentPrefab: {fileID: 2728903940092985898, guid: d7978fed0d554424aa068e61febd3f39, type: 3}
+  - studentPrefab: {fileID: 6961398638654618521, guid: 1a4fab333c186bf4090d87692ec7ae15, type: 3}
   - seatParent: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}

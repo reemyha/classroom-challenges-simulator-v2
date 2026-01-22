@@ -228,10 +228,28 @@ public class StudentVisualFeedback : MonoBehaviour
         {
             // Show current behavioral state with an emoji/icon
             string stateIcon = GetStateIcon(studentAgent.currentState);
-            stateText.text = $"{stateIcon} {studentAgent.currentState}";
+            string stateHebrew = GetStateHebrew(studentAgent.currentState);
+            stateText.text = $"{stateIcon} {stateHebrew}";
             
             // Color code state text
             stateText.color = GetStateColor(studentAgent.currentState);
+        }
+    }
+
+    /// <summary>
+    /// Get Hebrew name for student state
+    /// </summary>
+    string GetStateHebrew(StudentState state)
+    {
+        switch (state)
+        {
+            case StudentState.Listening: return "מאזין";
+            case StudentState.Engaged: return "מעורב";
+            case StudentState.Distracted: return "מוסח";
+            case StudentState.SideTalk: return "שיחה צדדית";
+            case StudentState.Arguing: return "מתווכח";
+            case StudentState.Withdrawn: return "מסוגר";
+            default: return state.ToString();
         }
     }
 

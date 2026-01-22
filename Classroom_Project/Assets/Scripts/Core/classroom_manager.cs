@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -12,11 +13,10 @@ public class ClassroomManager : MonoBehaviour
     public ScenarioConfig currentScenario;
     
     [Header("Student Management")]
-    public GameObject studentPrefab;
-    public Transform studentSpawnParent;
     public List<StudentAgent> activeStudents = new List<StudentAgent>();
 
     [Header("Student Spawning")]
+    [Tooltip("StudentSpawner component that handles spawning students. This is the active spawning system.")]
     public StudentSpawner studentSpawner;
 
     
@@ -45,8 +45,15 @@ public class ClassroomManager : MonoBehaviour
 
         if (!string.IsNullOrEmpty(selectedScenario) && loader != null)
         {
-            ScenarioConfig loadedScenario = loader.LoadScenario(selectedScenario);
-            LoadScenario(loadedScenario);
+            loader.LoadScenario(selectedScenario, 
+                onSuccess: (loadedScenario) => {
+                    LoadScenario(loadedScenario);
+                },
+                onError: (error) => {
+                    Debug.LogError($"Failed to load scenario: {error}");
+                    Debug.LogWarning("Falling back to inspector scenario");
+                    LoadScenario(currentScenario);
+                });
         }
         else
         {
@@ -347,12 +354,18 @@ public class ClassroomManager : MonoBehaviour
     {
         if (activeStudents.Count == 0) return;
 
-        // Calculate average engagement
-        int listeningCount = activeStudents.Count(s => s.currentState == StudentState.Listening || s.currentState == StudentState.Engaged);
-        overallClassEngagement = (float)listeningCount / activeStudents.Count;
+        // Calculate average engagement (exclude students on break)
+        int activeInClass = activeStudents.Count(s => s != null && !s.IsOnBreak());
+        if (activeInClass > 0)
+        {
+            int listeningCount = activeStudents.Count(s => s != null && !s.IsOnBreak() && 
+                (s.currentState == StudentState.Listening || s.currentState == StudentState.Engaged));
+            overallClassEngagement = (float)listeningCount / activeInClass;
+        }
 
-        // Count disruptions
-        disruptionCount = activeStudents.Count(s => s.currentState == StudentState.Arguing || s.currentState == StudentState.SideTalk);
+        // Count disruptions (exclude students on break)
+        disruptionCount = activeStudents.Count(s => s != null && !s.IsOnBreak() && 
+            (s.currentState == StudentState.Arguing || s.currentState == StudentState.SideTalk));
 
         // Update UI
         if (teacherUI != null)
@@ -375,6 +388,241 @@ public class ClassroomManager : MonoBehaviour
     public List<StudentAgent> GetStudentsByState(StudentState state)
     {
         return activeStudents.Where(s => s.currentState == state).ToList();
+    }
+
+    /// <summary>
+    /// Give a student a break for specified duration (in minutes)
+    /// </summary>
+    public void GiveStudentBreak(StudentAgent student, float durationMinutes)
+    {
+        if (student == null)
+        {
+            Debug.LogWarning("Cannot give break to null student");
+            return;
+        }
+
+        if (!activeStudents.Contains(student))
+        {
+            Debug.LogWarning($"Student {student.studentName} is not in active students list");
+            return;
+        }
+
+        // Record the action
+        TeacherAction action = new TeacherAction
+        {
+            Type = ActionType.GiveBreak,
+            TargetStudentId = student.studentId,
+            Context = $"Student {student.studentName} sent on break for {durationMinutes} minutes",
+            Timestamp = Time.time - sessionStartTime
+        };
+
+        actionCount++;
+        currentSession.teacherActions.Add(action);
+        positiveInterventions++; // Break is considered a positive intervention
+
+        // Start the break
+        student.StartBreak(durationMinutes);
+
+        // Start coroutine to handle break timer (since inactive GameObjects don't run Update)
+        StartCoroutine(HandleStudentBreak(student, durationMinutes * 60f));
+
+        Debug.Log($"Gave break to {student.studentName} for {durationMinutes} minutes");
+    }
+
+    /// <summary>
+    /// Coroutine to handle student break timer and return student after duration
+    /// </summary>
+    IEnumerator HandleStudentBreak(StudentAgent student, float durationSeconds)
+    {
+        yield return new WaitForSeconds(durationSeconds);
+
+        // Return student from break
+        if (student != null)
+        {
+            student.ReturnFromBreak();
+            
+            // Show feedback in UI if available
+            if (teacherUI != null)
+            {
+                teacherUI.ShowFeedback($"{student.studentName} חזר מההפסקה", Color.green);
+            }
+
+            Debug.Log($"{student.studentName} returned from break");
+        }
+    }
+
+    /// <summary>
+    /// Swap seats between two students or move a student to a seat spawn point
+    /// </summary>
+    public void SwapSeats(StudentAgent student1, StudentAgent student2, Transform seat1, Transform seat2)
+    {
+        // Case 1: Two students swapping seats
+        if (student1 != null && student2 != null)
+        {
+            Vector3 tempPosition = student1.transform.position;
+            Quaternion tempRotation = student1.transform.rotation;
+
+            student1.transform.position = student2.transform.position;
+            student1.transform.rotation = student2.transform.rotation;
+
+            student2.transform.position = tempPosition;
+            student2.transform.rotation = tempRotation;
+
+            // Apply emotional effect for both students
+            TeacherAction action1 = new TeacherAction
+            {
+                Type = ActionType.ChangeSeating,
+                TargetStudentId = student1.studentId,
+                Context = $"Swapped seat with {student2.studentName}"
+            };
+            student1.ReceiveTeacherAction(action1);
+
+            TeacherAction action2 = new TeacherAction
+            {
+                Type = ActionType.ChangeSeating,
+                TargetStudentId = student2.studentId,
+                Context = $"Swapped seat with {student1.studentName}"
+            };
+            student2.ReceiveTeacherAction(action2);
+
+            // Track the action
+            actionCount++;
+            currentSession.teacherActions.Add(action1);
+            currentSession.teacherActions.Add(action2);
+
+            Debug.Log($"Swapped seats between {student1.studentName} and {student2.studentName}");
+            return;
+        }
+
+        // Case 2: Student to seat spawn point
+        if (student1 != null && seat2 != null)
+        {
+            student1.transform.position = seat2.position;
+            student1.transform.rotation = seat2.rotation;
+
+            TeacherAction action = new TeacherAction
+            {
+                Type = ActionType.ChangeSeating,
+                TargetStudentId = student1.studentId,
+                Context = $"Moved to seat {seat2.name}"
+            };
+            student1.ReceiveTeacherAction(action);
+
+            actionCount++;
+            currentSession.teacherActions.Add(action);
+
+            Debug.Log($"Moved {student1.studentName} to seat {seat2.name}");
+            return;
+        }
+
+        if (student2 != null && seat1 != null)
+        {
+            student2.transform.position = seat1.position;
+            student2.transform.rotation = seat1.rotation;
+
+            TeacherAction action = new TeacherAction
+            {
+                Type = ActionType.ChangeSeating,
+                TargetStudentId = student2.studentId,
+                Context = $"Moved to seat {seat1.name}"
+            };
+            student2.ReceiveTeacherAction(action);
+
+            actionCount++;
+            currentSession.teacherActions.Add(action);
+
+            Debug.Log($"Moved {student2.studentName} to seat {seat1.name}");
+            return;
+        }
+
+        // Case 3: Two seat spawn points (move students to those seats)
+        if (seat1 != null && seat2 != null)
+        {
+            // Find students closest to each seat and swap them
+            StudentAgent closestToSeat1 = FindClosestStudentToSeat(seat1.position);
+            StudentAgent closestToSeat2 = FindClosestStudentToSeat(seat2.position);
+
+            if (closestToSeat1 != null && closestToSeat2 != null && closestToSeat1 != closestToSeat2)
+            {
+                Vector3 tempPosition = closestToSeat1.transform.position;
+                Quaternion tempRotation = closestToSeat1.transform.rotation;
+
+                closestToSeat1.transform.position = seat2.position;
+                closestToSeat1.transform.rotation = seat2.rotation;
+
+                closestToSeat2.transform.position = seat1.position;
+                closestToSeat2.transform.rotation = seat1.rotation;
+
+                // Apply emotional effect
+                TeacherAction action1 = new TeacherAction
+                {
+                    Type = ActionType.ChangeSeating,
+                    TargetStudentId = closestToSeat1.studentId,
+                    Context = $"Moved to seat {seat2.name}"
+                };
+                closestToSeat1.ReceiveTeacherAction(action1);
+
+                TeacherAction action2 = new TeacherAction
+                {
+                    Type = ActionType.ChangeSeating,
+                    TargetStudentId = closestToSeat2.studentId,
+                    Context = $"Moved to seat {seat1.name}"
+                };
+                closestToSeat2.ReceiveTeacherAction(action2);
+
+                actionCount++;
+                currentSession.teacherActions.Add(action1);
+                currentSession.teacherActions.Add(action2);
+
+                Debug.Log($"Swapped students at seats {seat1.name} and {seat2.name}");
+            }
+            else if (closestToSeat1 != null)
+            {
+                // Only one student found, move to the other seat
+                closestToSeat1.transform.position = seat2.position;
+                closestToSeat1.transform.rotation = seat2.rotation;
+
+                TeacherAction action = new TeacherAction
+                {
+                    Type = ActionType.ChangeSeating,
+                    TargetStudentId = closestToSeat1.studentId,
+                    Context = $"Moved to seat {seat2.name}"
+                };
+                closestToSeat1.ReceiveTeacherAction(action);
+
+                actionCount++;
+                currentSession.teacherActions.Add(action);
+
+                Debug.Log($"Moved {closestToSeat1.studentName} to seat {seat2.name}");
+            }
+            return;
+        }
+
+        Debug.LogWarning("Invalid seat swap parameters provided");
+    }
+
+    /// <summary>
+    /// Find the student closest to a given seat position
+    /// </summary>
+    StudentAgent FindClosestStudentToSeat(Vector3 seatPosition)
+    {
+        StudentAgent closest = null;
+        float minDistance = float.MaxValue;
+        float maxDistance = 3f; // Maximum distance to consider a student as being at that seat
+
+        foreach (StudentAgent student in activeStudents)
+        {
+            if (student == null) continue;
+
+            float distance = Vector3.Distance(student.transform.position, seatPosition);
+            if (distance < minDistance && distance < maxDistance)
+            {
+                minDistance = distance;
+                closest = student;
+            }
+        }
+
+        return closest;
     }
 
     /// <summary>
@@ -428,7 +676,10 @@ public class ClassroomManager : MonoBehaviour
         Debug.Log("Session saved to database (placeholder)");
         
         // Also save to local session history for UI display
-        TeacherHomeSceneUI.SaveSessionToHistory(report);
+        if (report != null)
+        {
+            TeacherHomeSceneUI.SaveSessionToHistory(report);
+        }
     }
 }
 

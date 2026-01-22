@@ -89,27 +89,27 @@ public class WebSpeechUI : MonoBehaviour
     void OnRecordingStarted()
     {
         UpdateUI(true);
-        SetStatus("Listening... Speak now!");
+        SetStatus("מאזין... דבר עכשיו!");
     }
 
     void OnRecordingEnded()
     {
         UpdateUI(false);
-        SetStatus("Processing...");
+        SetStatus("מעבד...");
     }
 
     void OnTranscriptionReceived(string transcript)
     {
         if (transcriptText != null)
         {
-            transcriptText.text = $"You said: {transcript}";
+            transcriptText.text = $"אמרת: {transcript}";
         }
-        SetStatus("Complete!");
+        SetStatus("הושלם!");
     }
 
     void OnError(string error)
     {
-        SetStatus($"Error: {error}");
+        SetStatus($"שגיאה: {error}");
         UpdateUI(false);
     }
 

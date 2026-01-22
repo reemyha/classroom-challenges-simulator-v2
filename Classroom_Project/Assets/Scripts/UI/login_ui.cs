@@ -48,13 +48,13 @@ public class LoginUI : MonoBehaviour
 
         if (string.IsNullOrEmpty(username))
         {
-            ShowMessage("Please enter a username", errorColor);
+            ShowMessage("אנא הזן שם משתמש", errorColor);
             return;
         }
 
         if (string.IsNullOrEmpty(password))
         {
-            ShowMessage("Please enter a password", errorColor);
+            ShowMessage("אנא הזן סיסמה", errorColor);
             return;
         }
 
@@ -65,7 +65,7 @@ public class LoginUI : MonoBehaviour
     {
         isProcessingLogin = true;
 
-        ShowMessage("Logging in...", normalColor);
+        ShowMessage("מתחבר...", normalColor);
         if (loadingIndicator != null) loadingIndicator.SetActive(true);
         if (loginButton != null) loginButton.interactable = false;
 
@@ -85,7 +85,7 @@ public class LoginUI : MonoBehaviour
     void OnLoginSuccess(LoginResponse response)
     {
         Debug.Log($"Login successful! Welcome {response.user.fullName}");
-        ShowMessage($"Welcome, {response.user.fullName}!", successColor);
+        ShowMessage($"ברוך הבא, {response.user.fullName}!", successColor);
         Invoke(nameof(TransitionToTeacherHome), 1f);
     }
 

@@ -23,7 +23,6 @@ public class TeacherUI : MonoBehaviour
     public Button praiseButton;
     public Button yellButton;
     public Button callToBoardButton;
-    public Button changeSeatingButton;
     public Button giveBreakButton;
     public Button removeStudentButton;
 
@@ -31,11 +30,15 @@ public class TeacherUI : MonoBehaviour
     public TextMeshProUGUI selectedStudentText;
     private StudentAgent selectedStudent;
     [Tooltip("Default text to show when no student is selected")]
-    public string defaultStudentText = "No student selected";
+    public string defaultStudentText = "לא נבחר תלמיד";
 
     [Header("Student Info Panel")]
     [Tooltip("Reference to StudentInfoPanelUI component")]
     public StudentInfoPanelUI studentInfoPanel;
+
+    [Header("Break Duration Panel")]
+    [Tooltip("Reference to BreakDurationPanelUI component for selecting break duration")]
+    public BreakDurationPanelUI breakDurationPanel;
 
     [Header("Feedback Panel")]
     public GameObject feedbackPanel;
@@ -92,11 +95,8 @@ public class TeacherUI : MonoBehaviour
         if (callToBoardButton != null)
             callToBoardButton.onClick.AddListener(() => ExecuteAction(ActionType.CallToBoard));
 
-        if (changeSeatingButton != null)
-            changeSeatingButton.onClick.AddListener(() => ExecuteAction(ActionType.ChangeSeating));
-
         if (giveBreakButton != null)
-            giveBreakButton.onClick.AddListener(() => ExecuteClasswideAction(ActionType.GiveBreak));
+            giveBreakButton.onClick.AddListener(OnGiveBreakButtonClicked);
 
         if (removeStudentButton != null)
             removeStudentButton.onClick.AddListener(() => ExecuteAction(ActionType.RemoveFromClass));
@@ -108,14 +108,14 @@ public class TeacherUI : MonoBehaviour
     public void UpdateMetrics(float engagement, int disruptions)
     {
         if (engagementText != null)
-            engagementText.text = $"Engagement: {engagement:P0}";
+            engagementText.text = $"מעורבות: {engagement:P0}";
 
         if (engagementSlider != null)
             engagementSlider.value = engagement;
 
         if (disruptionText != null)
         {
-            disruptionText.text = $"Disruptions: {disruptions}";
+            disruptionText.text = $"הפרעות: {disruptions}";
             disruptionText.color = disruptions > 5 ? Color.red : Color.white;
         }
     }
@@ -130,7 +130,7 @@ public class TeacherUI : MonoBehaviour
             float elapsed = Time.time - sessionStartTime;
             int minutes = Mathf.FloorToInt(elapsed / 60f);
             int seconds = Mathf.FloorToInt(elapsed % 60f);
-            sessionTimeText.text = $"Time: {minutes:00}:{seconds:00}";
+            sessionTimeText.text = $"זמן: {minutes:00}:{seconds:00}";
         }
     }
 
@@ -139,6 +139,28 @@ public class TeacherUI : MonoBehaviour
     /// </summary>
     void CheckForStudentSelection()
     {
+        // Check for right-click to view student info (works even in change seating mode)
+        if (Input.GetMouseButtonDown(1)) // Right mouse button
+        {
+            bool clickingOnUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            if (clickingOnUI) return;
+
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            RaycastHit hit;
+            
+            if (Physics.Raycast(ray, out hit, 100f))
+            {
+                StudentAgent student = hit.collider.GetComponentInParent<StudentAgent>();
+                if (student != null)
+                {
+                    // Right-click always shows student info, even in change seating mode
+                    SelectStudent(student, forceShowInfo: true);
+                    return;
+                }
+            }
+        }
+
+        // Left click handling
         if (Input.GetMouseButtonDown(0))
         {
             // Check if we're clicking on a UI element
@@ -172,21 +194,42 @@ public class TeacherUI : MonoBehaviour
     /// <summary>
     /// Select a student for targeted actions
     /// </summary>
-    public void SelectStudent(StudentAgent student)
+    public void SelectStudent(StudentAgent student, bool forceShowInfo = false)
     {
+
+        // Deselect previous student if any
+        if (selectedStudent != null && selectedStudent != student)
+        {
+            var prevFeedback = selectedStudent.GetComponentInChildren<StudentVisualFeedback>();
+            if (prevFeedback != null)
+                prevFeedback.SetSelected(false);
+        }
+
         selectedStudent = student;
+
+        // Set visual selection on the student
+        if (selectedStudent != null)
+        {
+            var feedback = selectedStudent.GetComponentInChildren<StudentVisualFeedback>();
+            if (feedback != null)
+                feedback.SetSelected(true);
+        }
 
         if (selectedStudentText != null)
         {
-            selectedStudentText.text = $"Selected: {student.studentName}\n" +
-                                      $"State: {student.currentState}\n" +
-                                      $"Emotions: {student.emotions}";
+            selectedStudentText.text = $"נבחר: {student.studentName}\n" +
+                                      $"מצב: {GetStateHebrew(student.currentState)}\n" +
+                                      $"רגשות: {student.emotions}";
         }
 
         // Show student info panel with detailed vectors
         if (studentInfoPanel != null)
         {
             studentInfoPanel.ShowStudentInfo(student);
+        }
+        else
+        {
+            Debug.LogWarning("TeacherUI: studentInfoPanel is not assigned! Cannot show student info.");
         }
 
         // Show action menu
@@ -201,6 +244,14 @@ public class TeacherUI : MonoBehaviour
     /// </summary>
     public void DeselectStudent()
     {
+        // Remove visual selection from student
+        if (selectedStudent != null)
+        {
+            var feedback = selectedStudent.GetComponentInChildren<StudentVisualFeedback>();
+            if (feedback != null)
+                feedback.SetSelected(false);
+        }
+
         selectedStudent = null;
 
         if (selectedStudentText != null)
@@ -251,12 +302,75 @@ public class TeacherUI : MonoBehaviour
     }
 
     /// <summary>
+    /// Handle give break button click - show duration selection panel
+    /// </summary>
+    void OnGiveBreakButtonClicked()
+    {
+        if (selectedStudent == null)
+        {
+            ShowFeedback("אנא בחר תלמיד תחילה!", Color.yellow);
+            return;
+        }
+
+        // Check if student is already on break
+        if (selectedStudent.IsOnBreak())
+        {
+            ShowFeedback($"{selectedStudent.studentName} כבר בהפסקה", Color.yellow);
+            return;
+        }
+
+        // Show break duration selection panel
+        if (breakDurationPanel != null)
+        {
+            breakDurationPanel.ShowPanel(selectedStudent, OnBreakDurationConfirmed);
+        }
+        else
+        {
+            Debug.LogWarning("TeacherUI: breakDurationPanel is not assigned!");
+            // Fallback: give break with default duration (5 minutes)
+            GiveStudentBreak(selectedStudent, 5f);
+        }
+    }
+
+    /// <summary>
+    /// Called when break duration is confirmed from the panel
+    /// </summary>
+    void OnBreakDurationConfirmed(float durationMinutes)
+    {
+        if (selectedStudent != null)
+        {
+            GiveStudentBreak(selectedStudent, durationMinutes);
+        }
+    }
+
+    /// <summary>
+    /// Give a student a break for specified duration
+    /// </summary>
+    void GiveStudentBreak(StudentAgent student, float durationMinutes)
+    {
+        if (student == null || classroomManager == null)
+            return;
+
+        // Use ClassroomManager to handle the break
+        classroomManager.GiveStudentBreak(student, durationMinutes);
+
+        // Show feedback
+        int minutes = Mathf.FloorToInt(durationMinutes);
+        int seconds = Mathf.RoundToInt((durationMinutes - minutes) * 60f);
+        string durationText = minutes > 0 ? $"{minutes} דקות" : $"{seconds} שניות";
+        ShowFeedback($"{student.studentName} יוצא להפסקה של {durationText}", Color.green);
+
+        // Deselect student after giving break
+        DeselectStudent();
+    }
+
+    /// <summary>
     /// Execute action on entire class
     /// </summary>
     void ExecuteClasswideAction(ActionType actionType)
     {
-        classroomManager.ExecuteClasswideAction(actionType, "Classwide intervention");
-        ShowFeedback($"Applied {actionType} to entire class", Color.blue);
+        classroomManager.ExecuteClasswideAction(actionType, "התערבות כיתתית");
+        ShowFeedback($"הוחל {GetActionTypeHebrew(actionType)} על כל הכיתה", Color.blue);
     }
 
     /// <summary>
@@ -275,38 +389,38 @@ public class TeacherUI : MonoBehaviour
     /// </summary>
     string GenerateFeedbackMessage(TeacherAction action, StudentAgent target)
     {
-        string message = $"{action.Type} → {target.studentName}\n";
+        string message = $"{GetActionTypeHebrew(action.Type)} → {target.studentName}\n";
 
         switch (action.Type)
         {
             case ActionType.Praise:
                 message += target.emotions.Happiness > 7f
-                    ? "✓ Student is motivated!"
-                    : "✓ Positive reinforcement applied";
+                    ? "✓ התלמיד מונע!"
+                    : "✓ חיזוק חיובי הוחל";
                 break;
 
             case ActionType.Yell:
                 message += target.rebelliousness > 0.7f
-                    ? "⚠ May trigger confrontation"
-                    : "Student quieted, but morale affected";
+                    ? "⚠ עלול לעורר עימות"
+                    : "התלמיד הושתק, אך המורל נפגע";
                 break;
 
             case ActionType.CallToBoard:
                 message += target.emotions.Sadness > 6f
-                    ? "⚠ Student seems anxious"
-                    : "✓ Engaging student actively";
+                    ? "⚠ התלמיד נראה חרד"
+                    : "✓ מערב את התלמיד באופן פעיל";
                 break;
 
             case ActionType.GiveBreak:
-                message += "✓ Class energy reset";
+                message += "✓ אנרגיית הכיתה אופסה";
                 break;
 
             case ActionType.RemoveFromClass:
-                message += "⚠ Extreme measure - student removed";
+                message += "⚠ צעד קיצוני - התלמיד הוסר";
                 break;
 
             default:
-                message += "Action executed";
+                message += "פעולה בוצעה";
                 break;
         }
 
@@ -374,13 +488,13 @@ public class TeacherUI : MonoBehaviour
     /// </summary>
     void ShowSessionSummary(SessionReport report)
     {
-        string summary = $"SESSION COMPLETE\n\n" +
-                        $"Score: {report.score:F1}/100\n" +
-                        $"Duration: {report.sessionData.duration:F1}s\n" +
-                        $"Total Actions: {report.totalActions}\n" +
-                        $"Positive: {report.positiveActions} | Negative: {report.negativeActions}\n" +
-                        $"Avg Engagement: {report.averageEngagement:P0}\n" +
-                        $"Disruptions: {report.totalDisruptions}\n\n" +
+        string summary = $"השלמת שיעור\n\n" +
+                        $"ציון: {report.score:F1}/100\n" +
+                        $"משך זמן: {report.sessionData.duration:F1} שניות\n" +
+                        $"סך פעולות: {report.totalActions}\n" +
+                        $"חיוביות: {report.positiveActions} | שליליות: {report.negativeActions}\n" +
+                        $"מעורבות ממוצעת: {report.averageEngagement:P0}\n" +
+                        $"הפרעות: {report.totalDisruptions}\n\n" +
                         GetPerformanceGrade(report.score);
 
         ShowFeedback(summary, Color.cyan);
@@ -388,10 +502,46 @@ public class TeacherUI : MonoBehaviour
 
     string GetPerformanceGrade(float score)
     {
-        if (score >= 90) return "Grade: A - Excellent Management!";
-        if (score >= 80) return "Grade: B - Good Job!";
-        if (score >= 70) return "Grade: C - Satisfactory";
-        if (score >= 60) return "Grade: D - Needs Improvement";
-        return "Grade: F - Review Strategies";
+        if (score >= 90) return "ציון: מצוין - ניהול מעולה!";
+        if (score >= 80) return "ציון: טוב מאוד - עבודה טובה!";
+        if (score >= 70) return "ציון: טוב - מספק";
+        if (score >= 60) return "ציון: מספיק - צריך שיפור";
+        return "ציון: נכשל - בדוק אסטרטגיות";
+    }
+
+    /// <summary>
+    /// Get Hebrew name for student state
+    /// </summary>
+    string GetStateHebrew(StudentState state)
+    {
+        switch (state)
+        {
+            case StudentState.Listening: return "מאזין";
+            case StudentState.Engaged: return "מעורב";
+            case StudentState.Distracted: return "מוסח";
+            case StudentState.SideTalk: return "שיחה צדדית";
+            case StudentState.Arguing: return "מתווכח";
+            case StudentState.Withdrawn: return "מסוגר";
+            default: return state.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Get Hebrew name for action type
+    /// </summary>
+    string GetActionTypeHebrew(ActionType actionType)
+    {
+        switch (actionType)
+        {
+            case ActionType.Praise: return "שבח";
+            case ActionType.Yell: return "צעקה";
+            case ActionType.CallToBoard: return "קריאה ללוח";
+            case ActionType.ChangeSeating: return "שינוי ישיבה";
+            case ActionType.GiveBreak: return "הפסקה";
+            case ActionType.RemoveFromClass: return "הסרה מהכיתה";
+            case ActionType.PositiveReinforcement: return "חיזוק חיובי";
+            case ActionType.Ignore: return "התעלמות";
+            default: return actionType.ToString();
+        }
     }
 }

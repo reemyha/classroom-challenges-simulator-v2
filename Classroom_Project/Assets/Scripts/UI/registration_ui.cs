@@ -93,9 +93,9 @@ public class RegistrationUI : MonoBehaviour
             // Add role options
             roleDropdown.AddOptions(new System.Collections.Generic.List<string>
             {
-                "Student (Trainee Teacher)",
-                "Instructor (Supervisor)",
-                "Administrator"
+                "סטודנט (מורה מתמחה)",
+                "מדריך (מפקח)",
+                "מנהל מערכת"
             });
             
             // Default to Student
@@ -116,7 +116,7 @@ public class RegistrationUI : MonoBehaviour
 
         // Clear all fields
         ClearFields();
-        ShowMessage("Create a new account", normalColor);
+        ShowMessage("צור חשבון חדש", normalColor);
     }
 
     /// <summary>
@@ -185,44 +185,44 @@ public class RegistrationUI : MonoBehaviour
     {
         // Username validation
         if (string.IsNullOrEmpty(username))
-            return "Username is required";
+            return "שם משתמש נדרש";
         
         if (username.Length < 3)
-            return "Username must be at least 3 characters";
+            return "שם משתמש חייב להכיל לפחות 3 תווים";
         
         if (username.Length > 20)
-            return "Username must be less than 20 characters";
+            return "שם משתמש חייב להכיל פחות מ-20 תווים";
         
         if (!Regex.IsMatch(username, @"^[a-zA-Z0-9_]+$"))
-            return "Username can only contain letters, numbers, and underscores";
+            return "שם משתמש יכול להכיל רק אותיות, מספרים וקו תחתון";
 
         // Password validation
         if (string.IsNullOrEmpty(password))
-            return "Password is required";
+            return "סיסמה נדרשת";
         
         if (password.Length < 6)
-            return "Password must be at least 6 characters";
+            return "סיסמה חייבת להכיל לפחות 6 תווים";
         
         if (password.Length > 50)
-            return "Password must be less than 50 characters";
+            return "סיסמה חייבת להכיל פחות מ-50 תווים";
 
         // Confirm password
         if (password != confirmPassword)
-            return "Passwords do not match";
+            return "הסיסמאות אינן תואמות";
 
         // Email validation
         if (string.IsNullOrEmpty(email))
-            return "Email is required";
+            return "כתובת אימייל נדרשת";
         
         if (!IsValidEmail(email))
-            return "Please enter a valid email address";
+            return "אנא הזן כתובת אימייל תקינה";
 
         // Full name validation
         if (string.IsNullOrEmpty(fullName))
-            return "Full name is required";
+            return "שם מלא נדרש";
         
         if (fullName.Length < 2)
-            return "Full name must be at least 2 characters";
+            return "שם מלא חייב להכיל לפחות 2 תווים";
 
         // All validation passed
         return null;
@@ -267,7 +267,7 @@ public class RegistrationUI : MonoBehaviour
         isProcessingRegistration = true;
 
         // Show loading state
-        ShowMessage("Creating account...", normalColor);
+        ShowMessage("יוצר חשבון...", normalColor);
         if (loadingIndicator != null)
             loadingIndicator.SetActive(true);
         if (registerButton != null)
@@ -304,7 +304,7 @@ public class RegistrationUI : MonoBehaviour
         }
         else
         {
-            OnRegistrationFailure(string.IsNullOrEmpty(errorMessage) ? "Registration failed. Please try again." : errorMessage);
+            OnRegistrationFailure(string.IsNullOrEmpty(errorMessage) ? "ההרשמה נכשלה. אנא נסה שוב." : errorMessage);
         }
 
         isProcessingRegistration = false;
@@ -323,7 +323,7 @@ public class RegistrationUI : MonoBehaviour
     {
         Debug.Log($"Registration successful for: {username}");
         
-        ShowMessage($"✓ Account created successfully!\nWelcome, {fullNameInput.text}!", successColor);
+        ShowMessage($"✓ החשבון נוצר בהצלחה!\nברוך הבא, {fullNameInput.text}!", successColor);
 
         // Auto-login after 2 seconds
         Invoke(nameof(AutoLogin), 2f);
@@ -342,7 +342,7 @@ public class RegistrationUI : MonoBehaviour
         string username = usernameInput.text.Trim();
         string password = passwordInput.text;
 
-        ShowMessage("Logging you in...", normalColor);
+        ShowMessage("מתחבר...", normalColor);
 
         bool loginComplete = false;
         bool loginSuccess = false;
@@ -376,7 +376,7 @@ public class RegistrationUI : MonoBehaviour
         {
             // If auto-login fails, just go back to login screen
             OnBackToLoginClicked();
-            ShowMessage("Account created! Please login.", successColor);
+            ShowMessage("החשבון נוצר! אנא התחבר.", successColor);
         }
     }
 
@@ -440,17 +440,17 @@ public class RegistrationUI : MonoBehaviour
 
         if (strength < 2)
         {
-            strengthText = "Weak password";
+            strengthText = "סיסמה חלשה";
             strengthColor = errorColor;
         }
         else if (strength < 4)
         {
-            strengthText = "Moderate password";
+            strengthText = "סיסמה בינונית";
             strengthColor = warningColor;
         }
         else
         {
-            strengthText = "Strong password";
+            strengthText = "סיסמה חזקה";
             strengthColor = successColor;
         }
 

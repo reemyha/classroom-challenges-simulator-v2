@@ -14,3 +14,8 @@ Builds/
 *.pidb
 *.booproj
 .vs/
+
+# Vercel / WebGL build output
+vercel_build/
+classroom_vercel/
+classroom_vercel_b/

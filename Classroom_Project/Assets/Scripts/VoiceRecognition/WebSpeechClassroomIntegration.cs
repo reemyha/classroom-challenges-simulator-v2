@@ -11,9 +11,13 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
     public WebSpeechRecognition webSpeech;
     public ClassroomManager classroomManager;
     public TeacherUI teacherUI;
+    public StudentAIResponseGenerator aiResponseGenerator;
 
     [Header("Settings")]
     public bool logCommands = true;
+    public bool enableQuestionDetection = true; // Enable students to respond to questions
+    [Tooltip("Auto-start voice recognition when scene loads (requires user permission)")]
+    public bool autoStartVoiceRecognition = false;
 
     // Command mappings
     private Dictionary<string[], System.Action> commandActions;
@@ -30,6 +34,9 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         if (teacherUI == null)
             teacherUI = FindObjectOfType<TeacherUI>();
 
+        if (aiResponseGenerator == null)
+            aiResponseGenerator = FindObjectOfType<StudentAIResponseGenerator>();
+
         // Subscribe to transcription events
         if (webSpeech != null)
         {
@@ -42,6 +49,26 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
 
         // Initialize command mappings
         InitializeCommands();
+        
+        // Auto-start voice recognition if enabled
+        if (autoStartVoiceRecognition && webSpeech != null)
+        {
+            // Delay slightly to ensure everything is initialized
+            Invoke(nameof(StartVoiceRecognition), 1f);
+        }
+    }
+    
+    /// <summary>
+    /// Start voice recognition (can be called manually or auto-started)
+    /// </summary>
+    public void StartVoiceRecognition()
+    {
+        if (webSpeech != null && !webSpeech.IsRecording())
+        {
+            webSpeech.StartRecording();
+            if (logCommands)
+                Debug.Log("[VoiceCommand] Voice recognition started automatically");
+        }
     }
 
     void OnDestroy()
@@ -150,11 +177,174 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
             ProcessComplexCommand(lower, targetStudent);
         }
 
+        // Check if teacher asked a question - make students respond
+        if (enableQuestionDetection && IsQuestion(transcript))
+        {
+            ProcessTeacherQuestion(transcript, targetStudent);
+        }
+
         // Show feedback
         if (teacherUI != null)
         {
             teacherUI.ShowFeedback($"Voice: {transcript}", Color.cyan);
         }
+    }
+
+    /// <summary>
+    /// Detect if the teacher's speech is a question
+    /// </summary>
+    private bool IsQuestion(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+            
+        string lower = text.ToLower().Trim();
+        
+        // Check for question words (English and Hebrew)
+        string[] questionIndicators = {
+            "what", "who", "when", "where", "why", "how", "can", "could", "would", "should", "do", "does", "did",
+            "מה", "מי", "מתי", "איפה", "למה", "איך", "האם", "יכול", "רוצה", "איזה", "איך", "למה", "מי", "מה"
+        };
+        
+        foreach (string indicator in questionIndicators)
+        {
+            if (lower.Contains(indicator))
+                return true;
+        }
+        
+        // Check for question marks (if transcribed)
+        if (text.Contains("?") || text.EndsWith("?"))
+            return true;
+        
+        // Check for question patterns in Hebrew (more comprehensive)
+        if (ContainsHebrew(text))
+        {
+            // Hebrew question words
+            if (lower.Contains("איזה") || lower.Contains("מי") || lower.Contains("מה") || 
+                lower.Contains("למה") || lower.Contains("איך") || lower.Contains("מתי") ||
+                lower.Contains("איפה") || lower.Contains("האם") || lower.Contains("כמה"))
+                return true;
+            
+            // Hebrew question patterns
+            if (lower.Contains("תוכל") || lower.Contains("תוכלי") || lower.Contains("תוכלו") ||
+                lower.Contains("תגיד") || lower.Contains("תגידי") || lower.Contains("תגידו") ||
+                lower.Contains("תסביר") || lower.Contains("תסבירי") || lower.Contains("תסבירו"))
+                return true;
+        }
+        
+        // Check for rising intonation patterns (common in questions)
+        // Questions often end with certain words
+        string[] questionEndings = { "?", "נכון", "כן", "לא", "right", "yes", "no" };
+        foreach (string ending in questionEndings)
+        {
+            if (lower.EndsWith(ending) || lower.Contains(" " + ending))
+                return true;
+        }
+        
+        return false;
+    }
+
+    private bool ContainsHebrew(string text)
+    {
+        foreach (char c in text)
+        {
+            if (c >= 0x0590 && c <= 0x05FF) // Hebrew Unicode range
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Process teacher's question and make students respond with AI-generated answers
+    /// </summary>
+    private void ProcessTeacherQuestion(string question, StudentAgent targetStudent)
+    {
+        if (classroomManager == null || classroomManager.activeStudents == null)
+            return;
+
+        if (logCommands)
+            Debug.Log($"[VoiceCommand] Teacher asked a question: '{question}'");
+
+        // If specific student is mentioned, only that student responds
+        if (targetStudent != null)
+        {
+            TriggerStudentResponse(targetStudent, question);
+            if (logCommands)
+                Debug.Log($"[VoiceCommand] {targetStudent.studentName} is responding to question");
+        }
+        else
+        {
+            // Classwide question - multiple students respond (based on their state)
+            int respondingCount = 0;
+            int maxRespondents = Mathf.Min(3, classroomManager.activeStudents.Count); // Max 3 students respond
+            
+            foreach (var student in classroomManager.activeStudents)
+            {
+                // Students with certain states are more likely to respond
+                bool shouldRespond = false;
+                
+                if (student.currentState == StudentState.Engaged || 
+                    student.currentState == StudentState.Listening)
+                {
+                    // Higher chance if engaged and motivated
+                    float respondChance = student.academicMotivation * 0.7f;
+                    if (student.emotions.Happiness >= 7f)
+                        respondChance += 0.2f;
+                    if (student.extroversion >= 0.7f)
+                        respondChance += 0.2f;
+                    
+                    shouldRespond = Random.value < respondChance && respondingCount < maxRespondents;
+                }
+                
+                if (shouldRespond)
+                {
+                    // Stagger responses slightly (0-2 seconds delay)
+                    StartCoroutine(DelayedStudentResponse(student, question, Random.Range(0f, 2f)));
+                    respondingCount++;
+                }
+            }
+            
+            if (logCommands)
+                Debug.Log($"[VoiceCommand] {respondingCount} student(s) will respond to question");
+        }
+    }
+
+    private System.Collections.IEnumerator DelayedStudentResponse(StudentAgent student, string question, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        TriggerStudentResponse(student, question);
+    }
+
+    private void TriggerStudentResponse(StudentAgent student, string question)
+    {
+        if (student == null || string.IsNullOrWhiteSpace(question))
+            return;
+
+        if (aiResponseGenerator == null)
+            aiResponseGenerator = FindObjectOfType<StudentAIResponseGenerator>();
+
+        if (aiResponseGenerator == null)
+        {
+            if (logCommands)
+                Debug.LogWarning("[VoiceCommand] StudentAIResponseGenerator not found; cannot generate student response.");
+            return;
+        }
+
+        StartCoroutine(aiResponseGenerator.GenerateStudentResponse(student, question, (response) =>
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return;
+
+            var bubble = student.GetComponentInChildren<StudentResponseBubble>();
+            if (bubble != null)
+            {
+                bubble.ShowResponse(response);
+            }
+            else if (logCommands)
+            {
+                Debug.LogWarning($"[VoiceCommand] StudentResponseBubble not found for {student.studentName}. Response was: {response}");
+            }
+        }));
     }
 
     StudentAgent DetectStudentMention(string text)

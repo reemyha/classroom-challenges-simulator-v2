@@ -282,8 +282,8 @@ public class TeacherHomeSceneUI : MonoBehaviour
         
         if (string.IsNullOrEmpty(feedback))
         {
-            feedback = "No supervisor feedback available yet.\n\n" +
-                       "Your supervisor will provide feedback here after reviewing your teaching sessions.";
+            feedback = "עדיין אין משוב ממפקח.\n\n" +
+                       "המפקח שלך יספק משוב כאן לאחר סקירת שיעורי ההוראה שלך.";
         }
 
         supervisorFeedbackText.text = feedback;
@@ -440,14 +440,14 @@ public class TeacherHomeSceneUI : MonoBehaviour
         if (userInfoText != null && authManager != null && authManager.currentUser != null)
         {
             var user = authManager.currentUser;
-            userInfoText.text = $"Welcome, {user.fullName}\nRole: {user.role}";
+            userInfoText.text = $"ברוך הבא, {user.fullName}\nתפקיד: {GetRoleHebrew(user.role)}";
         }
 
         // Update total sessions
         if (totalSessionsText != null)
         {
             int totalSessions = PlayerPrefs.GetInt("SessionHistoryCount", 0);
-            totalSessionsText.text = $"Total Sessions: {totalSessions}";
+            totalSessionsText.text = $"סך שיעורים: {totalSessions}";
         }
     }
 
@@ -474,7 +474,7 @@ public class TeacherHomeSceneUI : MonoBehaviour
             engagement = report.averageEngagement,
             totalActions = report.totalActions,
             disruptions = report.totalDisruptions,
-            feedback = string.IsNullOrEmpty(feedback) ? "No feedback provided." : feedback
+            feedback = string.IsNullOrEmpty(feedback) ? "לא סופק משוב." : feedback
         };
 
         // Save to PlayerPrefs
@@ -486,6 +486,20 @@ public class TeacherHomeSceneUI : MonoBehaviour
         count++;
         PlayerPrefs.SetInt("SessionHistoryCount", count);
         PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// Get Hebrew translation for user role
+    /// </summary>
+    string GetRoleHebrew(UserRole role)
+    {
+        switch (role)
+        {
+            case UserRole.Student: return "סטודנט";
+            case UserRole.Instructor: return "מדריך";
+            case UserRole.Administrator: return "מנהל מערכת";
+            default: return role.ToString();
+        }
     }
 }
 

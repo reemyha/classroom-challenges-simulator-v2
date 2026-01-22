@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.AI;
+using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
@@ -33,15 +35,79 @@ public class StudentAgent : MonoBehaviour
     public Renderer studentRenderer;
     private Color originalColor;
 
+    [Header("Movement")]
+    public NavMeshAgent navAgent;
+    public float walkSpeed = 2f;
+    public Transform seatPosition; // Original seat position to return to
+    private Vector3 originalPosition;
+    private Quaternion originalRotation;
+    private bool isMoving = false;
+    private bool hasAnswer = false; // Track if student has an answer ready
+
     [Header("Behavior Timing")]
     private float stateDuration = 0f;
     private float nextStateCheckTime = 0f;
     public float stateCheckInterval = 2f;
 
+    [Header("Break Status")]
+    private bool isOnBreak = false;
+    private float breakStartTime = 0f;
+    private float breakDurationSeconds = 0f;
+    private Vector3 positionBeforeBreak;
+    private Quaternion rotationBeforeBreak;
+    private bool wasActiveBeforeBreak = true;
+
     void Start()
     {
+        // Auto-assign renderer if not set
+        if (studentRenderer == null)
+        {
+            studentRenderer = GetComponent<Renderer>();
+            if (studentRenderer == null)
+            {
+                studentRenderer = GetComponentInChildren<Renderer>();
+            }
+        }
+        
         if (studentRenderer != null)
+        {
             originalColor = studentRenderer.material.color;
+            // Ensure renderer is enabled
+            studentRenderer.enabled = true;
+        }
+        else
+        {
+            Debug.LogWarning($"[StudentAgent] {studentName}: No renderer found! Student may be invisible.");
+        }
+
+        // Initialize NavMeshAgent if not assigned
+        if (navAgent == null)
+            navAgent = GetComponent<NavMeshAgent>();
+        
+        if (navAgent != null)
+        {
+            navAgent.speed = walkSpeed;
+            navAgent.enabled = true;
+            
+            // Ensure collider is enabled for click detection (NavMeshAgent doesn't disable it, but we verify)
+            Collider col = GetComponent<Collider>();
+            if (col != null)
+                col.enabled = true;
+        }
+        
+
+        // Store original position (seat position)
+        originalPosition = transform.position;
+        originalRotation = transform.rotation;
+        
+        if (seatPosition == null)
+        {
+            // Create a reference point at current position
+            GameObject seatObj = new GameObject($"Seat_{studentName}");
+            seatObj.transform.position = originalPosition;
+            seatObj.transform.rotation = originalRotation;
+            seatPosition = seatObj.transform;
+        }
 
         UpdateNearbyStudents();
         InvokeRepeating(nameof(UpdateNearbyStudents), 0f, 5f);
@@ -49,6 +115,9 @@ public class StudentAgent : MonoBehaviour
 
     void Update()
     {
+        // Note: Break status is checked by ClassroomManager via coroutine
+        // because inactive GameObjects don't run Update()
+
         // Apply natural emotional decay
         emotions.Decay(Time.deltaTime);
 
@@ -64,6 +133,19 @@ public class StudentAgent : MonoBehaviour
 
         // Execute current state behavior
         ExecuteStateBehavior();
+
+        // Check for crying when sadness is maxed
+        if (emotions.Sadness >= 10f)
+        {
+            TriggerCryingAnimation();
+        }
+        else
+        {
+            StopCryingAnimation();
+        }
+
+        // Update movement animations
+        UpdateMovementAnimations();
 
         // Update visual feedback
         UpdateVisualFeedback();
@@ -150,10 +232,16 @@ public class StudentAgent : MonoBehaviour
                 break;
 
             case StudentState.Engaged:
-                // Active participation, hand raised
-                if (Random.value < 0.01f) // 1% chance per frame to raise hand
+                // Active participation - check if student has answer and wants to raise hand
+                if (hasAnswer && Random.value < 0.005f) // 0.5% chance per frame to raise hand when engaged
                 {
                     RaiseHand();
+                }
+                
+                // Occasionally get an answer ready (student thinks of answer)
+                if (Random.value < 0.001f && academicMotivation > 0.5f)
+                {
+                    hasAnswer = true;
                 }
                 break;
 
@@ -258,10 +346,12 @@ public class StudentAgent : MonoBehaviour
 
             case ActionType.CallToBoard:
                 TransitionToState(StudentState.Engaged);
+                // Walk to board when called
+                WalkToBoard();
                 break;
 
             case ActionType.RemoveFromClass:
-                // Handle removal
+                // Handle permanent removal (not break)
                 gameObject.SetActive(false);
                 break;
         }
@@ -300,10 +390,41 @@ public class StudentAgent : MonoBehaviour
         }
     }
 
-    void RaiseHand()
+    /// <summary>
+    /// Trigger crying animation when sadness reaches maximum (10)
+    /// </summary>
+    void TriggerCryingAnimation()
+    {
+        if (animator != null)
+        {
+            animator.SetBool("IsCrying", true);
+        }
+    }
+
+    /// <summary>
+    /// Stop crying animation when sadness decreases
+    /// </summary>
+    void StopCryingAnimation()
+    {
+        if (animator != null && emotions.Sadness < 10f)
+        {
+            animator.SetBool("IsCrying", false);
+        }
+    }
+
+    /// <summary>
+    /// Raise hand animation - triggered when student has an answer
+    /// </summary>
+    public void RaiseHand()
     {
         Debug.Log($"{studentName} raised hand");
-        // Visual indicator or animation
+        
+        if (animator != null)
+        {
+            animator.SetTrigger("RaiseHand");
+        }
+        
+        hasAnswer = false; // Reset after raising hand
     }
 
     void TriggerDisruptiveEvent()
@@ -332,6 +453,338 @@ public class StudentAgent : MonoBehaviour
             targetColor = Color.Lerp(originalColor, Color.grey, 0.5f);
 
         studentRenderer.material.color = Color.Lerp(studentRenderer.material.color, targetColor, Time.deltaTime * 2f);
+    }
+
+    /// <summary>
+    /// Update walking animation based on movement state
+    /// </summary>
+    void UpdateMovementAnimations()
+    {
+        if (animator == null || navAgent == null) return;
+
+        // Check if student is moving
+        bool isMovingNow = navAgent.enabled && navAgent.isOnNavMesh && navAgent.remainingDistance > 0.1f;
+        
+        if (isMoving != isMovingNow)
+        {
+            isMoving = isMovingNow;
+            animator.SetBool("IsWalking", isMoving);
+        }
+
+        // Update speed parameter if animator has it
+        if (isMoving && navAgent.velocity.magnitude > 0.1f)
+        {
+            animator.SetFloat("WalkSpeed", navAgent.velocity.magnitude / walkSpeed);
+        }
+    }
+
+    /// <summary>
+    /// Walk to the board when teacher calls student
+    /// </summary>
+    public void WalkToBoard()
+    {
+        if (navAgent == null || !navAgent.isOnNavMesh)
+        {
+            Debug.LogWarning($"{studentName} cannot walk - NavMeshAgent not available");
+            return;
+        }
+
+        // Find board position
+        GameObject board = GameObject.FindGameObjectWithTag("Board");
+        if (board == null)
+        {
+            // Try finding by name
+            board = GameObject.Find("board") ?? GameObject.Find("Board");
+        }
+
+        if (board != null)
+        {
+            Vector3 boardPosition = board.transform.position;
+            // Position in front of board (adjust offset as needed)
+            Vector3 targetPosition = boardPosition + board.transform.forward * 1.5f;
+            targetPosition.y = transform.position.y; // Keep same height
+
+            StartCoroutine(MoveToPosition(targetPosition));
+        }
+        else
+        {
+            Debug.LogWarning($"Board not found for {studentName} to walk to");
+        }
+    }
+
+    /// <summary>
+    /// Walk to a specific position (for teacher commands)
+    /// </summary>
+    public void WalkToPosition(Vector3 targetPosition)
+    {
+        if (navAgent == null || !navAgent.isOnNavMesh)
+        {
+            Debug.LogWarning($"{studentName} cannot walk - NavMeshAgent not available");
+            return;
+        }
+
+        StartCoroutine(MoveToPosition(targetPosition));
+    }
+
+    /// <summary>
+    /// Coroutine to handle movement to a target position
+    /// </summary>
+    IEnumerator MoveToPosition(Vector3 targetPosition)
+    {
+        if (navAgent == null || !navAgent.isOnNavMesh)
+            yield break;
+
+        navAgent.enabled = true;
+        
+        // Ensure collider remains enabled during movement for click detection
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+            col.enabled = true;
+        
+        navAgent.SetDestination(targetPosition);
+
+        // Wait until student reaches destination
+        while (navAgent.enabled && navAgent.isOnNavMesh && navAgent.remainingDistance > 0.2f)
+        {
+            yield return null;
+        }
+
+        // Stop moving animation when reached
+        if (animator != null)
+        {
+            animator.SetBool("IsWalking", false);
+        }
+
+        // Face the board/teacher
+        if (navAgent.enabled)
+        {
+            Vector3 lookDirection = targetPosition - transform.position;
+            if (lookDirection.magnitude > 0.1f)
+            {
+                lookDirection.y = 0;
+                transform.rotation = Quaternion.LookRotation(lookDirection);
+            }
+        }
+
+        isMoving = false;
+    }
+
+    /// <summary>
+    /// Return to seat after being at board
+    /// </summary>
+    public void ReturnToSeat()
+    {
+        if (seatPosition != null)
+        {
+            WalkToPosition(seatPosition.position);
+            StartCoroutine(ReturnToSeatRotation());
+        }
+    }
+
+    /// <summary>
+    /// Restore original rotation when returning to seat
+    /// </summary>
+    IEnumerator ReturnToSeatRotation()
+    {
+        yield return new WaitUntil(() => !isMoving && navAgent != null && navAgent.remainingDistance < 0.2f);
+        
+        if (originalRotation != null)
+        {
+            transform.rotation = originalRotation;
+        }
+    }
+
+    /// <summary>
+    /// Mark that student has an answer ready (called from external systems if needed)
+    /// </summary>
+    public void SetHasAnswer(bool hasAnswerValue)
+    {
+        hasAnswer = hasAnswerValue;
+        if (hasAnswer && currentState == StudentState.Engaged)
+        {
+            // Immediately raise hand if engaged and has answer
+            RaiseHand();
+        }
+    }
+
+    /// <summary>
+    /// Set the visual selection state of this student
+    /// </summary>
+    public void SetSelected(bool selected)
+    {
+        // Find the StudentVisualFeedback component (usually on a child object)
+        StudentVisualFeedback visualFeedback = GetComponentInChildren<StudentVisualFeedback>();
+        if (visualFeedback == null)
+        {
+            // Try to find it on the same GameObject
+            visualFeedback = GetComponent<StudentVisualFeedback>();
+        }
+
+        if (visualFeedback != null)
+        {
+            visualFeedback.SetSelected(selected);
+        }
+        else
+        {
+            // Fallback: if no visual feedback component, just log
+            Debug.Log($"[StudentAgent] {studentName} selection: {selected} (no StudentVisualFeedback component found)");
+        }
+    }
+
+    /// <summary>
+    /// Respond to a teacher's question with an AI-generated answer
+    /// </summary>
+    public void RespondToQuestion(string question)
+    {
+        if (string.IsNullOrEmpty(question))
+            return;
+
+        // Find the AI response generator
+        StudentAIResponseGenerator responseGenerator = FindObjectOfType<StudentAIResponseGenerator>();
+        if (responseGenerator == null)
+        {
+            Debug.LogWarning($"[StudentAgent] No StudentAIResponseGenerator found for {studentName} to respond to question");
+            return;
+        }
+
+        // Find or get the response bubble component
+        StudentResponseBubble responseBubble = GetComponentInChildren<StudentResponseBubble>();
+        if (responseBubble == null)
+        {
+            // Try to find it on the same GameObject
+            responseBubble = GetComponent<StudentResponseBubble>();
+        }
+
+        // Start generating response
+        StartCoroutine(GenerateAndShowResponse(responseGenerator, responseBubble, question));
+    }
+
+    /// <summary>
+    /// Coroutine to generate response and display it
+    /// </summary>
+    private System.Collections.IEnumerator GenerateAndShowResponse(
+        StudentAIResponseGenerator generator, 
+        StudentResponseBubble bubble, 
+        string question)
+    {
+        string response = "";
+        
+        // Generate response using the AI generator
+        yield return generator.GenerateStudentResponse(this, question, (generatedResponse) =>
+        {
+            response = generatedResponse;
+        });
+
+        // Display the response if we have a bubble
+        if (bubble != null && !string.IsNullOrEmpty(response))
+        {
+            bubble.ShowResponse(response);
+            
+            // Auto-hide after 5 seconds
+            yield return new WaitForSeconds(5f);
+            bubble.HideBubble();
+        }
+        else if (!string.IsNullOrEmpty(response))
+        {
+            // Log response if no bubble is available
+            Debug.Log($"{studentName} says: {response}");
+        }
+
+        // Update emotional state based on responding
+        if (currentState == StudentState.Engaged || currentState == StudentState.Listening)
+        {
+            emotions.Happiness += 0.5f;
+            emotions.Boredom = Mathf.Max(1f, emotions.Boredom - 1f);
+        }
+    }
+
+    /// <summary>
+    /// Send student on a break for specified duration (in minutes)
+    /// </summary>
+    public void StartBreak(float durationMinutes)
+    {
+        if (isOnBreak)
+        {
+            Debug.LogWarning($"{studentName} is already on break!");
+            return;
+        }
+
+        isOnBreak = true;
+        breakStartTime = Time.time;
+        breakDurationSeconds = durationMinutes * 60f;
+
+        // Store current position and state
+        positionBeforeBreak = transform.position;
+        rotationBeforeBreak = transform.rotation;
+        wasActiveBeforeBreak = gameObject.activeSelf;
+
+        // Deactivate the student (hide from classroom)
+        gameObject.SetActive(false);
+
+        // Apply emotional effect - break can reduce stress/boredom
+        emotions.Boredom = Mathf.Max(0f, emotions.Boredom - 1f);
+        emotions.Frustration = Mathf.Max(0f, emotions.Frustration - 0.5f);
+
+        Debug.Log($"{studentName} went on break for {durationMinutes} minutes");
+    }
+
+    /// <summary>
+    /// Return student from break to the classroom
+    /// Called by ClassroomManager after break duration elapses
+    /// </summary>
+    public void ReturnFromBreak()
+    {
+        if (!isOnBreak)
+            return;
+
+        isOnBreak = false;
+
+        // Reactivate the student
+        gameObject.SetActive(wasActiveBeforeBreak);
+
+        // Restore position and rotation
+        transform.position = positionBeforeBreak;
+        transform.rotation = rotationBeforeBreak;
+
+        // Reset to a calmer state after break
+        TransitionToState(StudentState.Listening);
+        
+        // Slight emotional boost from break
+        emotions.Boredom = Mathf.Max(0f, emotions.Boredom - 1f);
+        emotions.Happiness = Mathf.Min(10f, emotions.Happiness + 0.5f);
+
+        Debug.Log($"{studentName} returned from break");
+    }
+
+    /// <summary>
+    /// Check if student is currently on break
+    /// </summary>
+    public bool IsOnBreak()
+    {
+        return isOnBreak;
+    }
+
+    /// <summary>
+    /// Get remaining break time in seconds (returns 0 if not on break)
+    /// </summary>
+    public float GetRemainingBreakTime()
+    {
+        if (!isOnBreak)
+            return 0f;
+
+        float elapsedTime = Time.time - breakStartTime;
+        return Mathf.Max(0f, breakDurationSeconds - elapsedTime);
+    }
+
+    /// <summary>
+    /// Force return student from break early (if needed)
+    /// </summary>
+    public void ForceReturnFromBreak()
+    {
+        if (isOnBreak)
+        {
+            ReturnFromBreak();
+        }
     }
 }
 
