@@ -256,6 +256,7 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
 
     /// <summary>
     /// Process teacher's question and make students respond with AI-generated answers
+    /// Uses the new StudentQuestionResponder system for progressive interest
     /// </summary>
     private void ProcessTeacherQuestion(string question, StudentAgent targetStudent)
     {
@@ -274,38 +275,30 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         }
         else
         {
-            // Classwide question - multiple students respond (based on their state)
-            int respondingCount = 0;
-            int maxRespondents = Mathf.Min(3, classroomManager.activeStudents.Count); // Max 3 students respond
-            
+            // Classwide question - trigger all students' question responders
+            // Each student will independently decide whether to show eagerness
+            int eagerStudentCount = 0;
+
             foreach (var student in classroomManager.activeStudents)
             {
-                // Students with certain states are more likely to respond
-                bool shouldRespond = false;
-                
-                if (student.currentState == StudentState.Engaged || 
-                    student.currentState == StudentState.Listening)
+                // Get or add StudentQuestionResponder component
+                StudentQuestionResponder responder = student.GetComponent<StudentQuestionResponder>();
+                if (responder == null)
                 {
-                    // Higher chance if engaged and motivated
-                    float respondChance = student.academicMotivation * 0.7f;
-                    if (student.emotions.Happiness >= 7f)
-                        respondChance += 0.2f;
-                    if (student.extroversion >= 0.7f)
-                        respondChance += 0.2f;
-                    
-                    shouldRespond = Random.value < respondChance && respondingCount < maxRespondents;
+                    responder = student.gameObject.AddComponent<StudentQuestionResponder>();
                 }
-                
-                if (shouldRespond)
-                {
-                    // Stagger responses slightly (0-2 seconds delay)
-                    StartCoroutine(DelayedStudentResponse(student, question, Random.Range(0f, 2f)));
-                    respondingCount++;
-                }
+
+                // Trigger the question for this student
+                // The responder will decide if and how to show eagerness
+                responder.OnQuestionAsked(question);
+
+                // Count how many students are showing eagerness
+                if (responder.HasAnswerReady())
+                    eagerStudentCount++;
             }
-            
+
             if (logCommands)
-                Debug.Log($"[VoiceCommand] {respondingCount} student(s) will respond to question");
+                Debug.Log($"[VoiceCommand] {eagerStudentCount} student(s) are eager to answer");
         }
     }
 

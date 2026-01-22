@@ -37,6 +37,12 @@ public class StudentResponseBubble : MonoBehaviour
     [Tooltip("Padding around text")]
     public Vector2 textPadding = new Vector2(10f, 8f);
 
+    [Tooltip("Width for eager/preview bubbles")]
+    public float eagerBubbleWidth = 80f;
+
+    [Tooltip("Max width for full answer bubbles")]
+    public float answerBubbleMaxWidth = 300f;
+
     [Header("Styling")]
     [Tooltip("Background color of the bubble")]
     public Color backgroundColor = new Color(1f, 1f, 1f, 0.95f);
@@ -47,8 +53,12 @@ public class StudentResponseBubble : MonoBehaviour
     [Tooltip("Font size")]
     public int fontSize = 14;
 
+    [Tooltip("Font size for eager/preview text")]
+    public int eagerFontSize = 16;
+
     private string currentResponse = "";
     private RectTransform bubbleRect;
+    private bool isAnswerMode = false; // Track if showing full answer or eager preview
 
     void Start()
     {
@@ -223,7 +233,7 @@ public class StudentResponseBubble : MonoBehaviour
 
 
     /// <summary>
-    /// Show response text in the bubble.
+    /// Show response text in the bubble (full answer mode).
     /// </summary>
     public void ShowResponse(string response)
     {
@@ -234,11 +244,13 @@ public class StudentResponseBubble : MonoBehaviour
         }
 
         currentResponse = response;
+        isAnswerMode = true;
 
         if (responseText != null)
         {
             responseText.text = response;
-            
+            responseText.fontSize = fontSize;
+
             // Auto-detect Hebrew and set RTL alignment
             bool isHebrew = ContainsHebrew(response);
             if (isHebrew)
@@ -258,14 +270,70 @@ public class StudentResponseBubble : MonoBehaviour
         {
             // Force text to recalculate preferred size
             responseText.ForceMeshUpdate();
-            
+
             float textWidth = responseText.preferredWidth;
             float textHeight = responseText.preferredHeight;
-            
-            // Set width (clamped to min/max)
-            float width = Mathf.Clamp(textWidth + textPadding.x * 2, minWidth, maxWidth);
+
+            // Set width (clamped to min/max for full answers)
+            float width = Mathf.Clamp(textWidth + textPadding.x * 2, minWidth, answerBubbleMaxWidth);
             float height = Mathf.Max(35f, textHeight + textPadding.y * 2);
-            
+
+            bubbleRect.sizeDelta = new Vector2(width, height);
+        }
+
+        // Show the bubble
+        if (responseCanvas != null)
+        {
+            responseCanvas.gameObject.SetActive(true);
+        }
+    }
+
+    /// <summary>
+    /// Show eager/preview bubble (small, for "I know!" type messages).
+    /// </summary>
+    public void ShowEagerBubble(string previewText)
+    {
+        if (string.IsNullOrEmpty(previewText))
+        {
+            HideBubble();
+            return;
+        }
+
+        currentResponse = previewText;
+        isAnswerMode = false;
+
+        if (responseText != null)
+        {
+            responseText.text = previewText;
+            responseText.fontSize = eagerFontSize;
+
+            // Auto-detect Hebrew and set RTL alignment
+            bool isHebrew = ContainsHebrew(previewText);
+            if (isHebrew)
+            {
+                responseText.isRightToLeftText = true;
+                responseText.alignment = TextAlignmentOptions.Center;
+            }
+            else
+            {
+                responseText.isRightToLeftText = false;
+                responseText.alignment = TextAlignmentOptions.Center;
+            }
+        }
+
+        // Use smaller, fixed size for eager bubbles
+        if (bubbleRect != null)
+        {
+            // Force text to recalculate preferred size
+            responseText.ForceMeshUpdate();
+
+            float textWidth = responseText.preferredWidth;
+            float textHeight = responseText.preferredHeight;
+
+            // Smaller, more compact bubble for eager text
+            float width = Mathf.Max(eagerBubbleWidth, textWidth + textPadding.x * 2);
+            float height = Mathf.Max(30f, textHeight + textPadding.y);
+
             bubbleRect.sizeDelta = new Vector2(width, height);
         }
 
@@ -287,6 +355,7 @@ public class StudentResponseBubble : MonoBehaviour
         }
 
         currentResponse = "";
+        isAnswerMode = false;
     }
 
     /// <summary>
@@ -295,6 +364,14 @@ public class StudentResponseBubble : MonoBehaviour
     public bool IsShowing()
     {
         return responseCanvas != null && responseCanvas.gameObject.activeSelf && !string.IsNullOrEmpty(currentResponse);
+    }
+
+    /// <summary>
+    /// Check if bubble is in answer mode (showing full answer) or eager mode (preview text)
+    /// </summary>
+    public bool IsAnswerMode()
+    {
+        return isAnswerMode;
     }
 
     /// <summary>

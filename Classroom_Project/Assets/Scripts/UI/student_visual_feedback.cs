@@ -40,7 +40,7 @@ public class StudentVisualFeedback : MonoBehaviour
     
     [Header("Selection")]
     public bool isSelected = false;
-    public Color selectionColor = Color.yellow;
+    public Color selectionColor = Color.blue;
     public GameObject selectionRing;
     
     private Color currentBodyColor;
