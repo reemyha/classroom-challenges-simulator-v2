@@ -213,6 +213,20 @@ public class TeacherUI : MonoBehaviour
             var feedback = selectedStudent.GetComponentInChildren<StudentVisualFeedback>();
             if (feedback != null)
                 feedback.SetSelected(true);
+
+            // Check if student has an answer ready (eager to respond)
+            // If so, trigger the full answer display
+            var questionResponder = selectedStudent.GetComponent<StudentQuestionResponder>();
+            if (questionResponder != null && questionResponder.HasAnswerReady())
+            {
+                Debug.Log($"[TeacherUI] {selectedStudent.studentName} is eager to answer! Showing full response...");
+
+                // Trigger the full answer display
+                questionResponder.ShowFullAnswer();
+
+                // Optionally show feedback to teacher
+                ShowFeedback($"{selectedStudent.studentName} עונה...", Color.cyan);
+            }
         }
 
         if (selectedStudentText != null)
