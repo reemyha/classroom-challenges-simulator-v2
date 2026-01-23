@@ -233,7 +233,8 @@ public class TeacherUI : MonoBehaviour
         {
             selectedStudentText.text = $"נבחר: {student.studentName}\n" +
                                       $"מצב: {GetStateHebrew(student.currentState)}\n\n" +
-                                      $"רגשות:\n{student.emotions.ToReadableString()}";
+                                      $"רגשות:\n{student.emotions.ToSimpleString()}\n\n" +
+                                      $"מצב רגשי כללי: {GetOverallMoodText(student.emotions)}";
         }
 
         // Show student info panel with detailed vectors
@@ -538,6 +539,20 @@ public class TeacherUI : MonoBehaviour
             case StudentState.Withdrawn: return "מסוגר";
             default: return state.ToString();
         }
+    }
+
+    /// <summary>
+    /// Get overall mood description in Hebrew
+    /// </summary>
+    string GetOverallMoodText(EmotionVector emotions)
+    {
+        float mood = emotions.GetOverallMood();
+
+        if (mood >= 6f) return "חיובי מאוד 😊";
+        if (mood >= 3f) return "חיובי 🙂";
+        if (mood >= 0f) return "ניטרלי 😐";
+        if (mood >= -3f) return "שלילי 😟";
+        return "שלילי מאוד 😞";
     }
 
     /// <summary>

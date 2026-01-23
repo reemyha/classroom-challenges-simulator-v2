@@ -176,6 +176,7 @@ public class EmotionVector
 
     /// <summary>
     /// Get a more readable emotion display with full names and visual indicators
+    /// Uses ASCII bars for better font compatibility
     /// </summary>
     public string ToReadableString()
     {
@@ -187,13 +188,40 @@ public class EmotionVector
     }
 
     /// <summary>
+    /// Get a simple list format (no bars, just values)
+    /// </summary>
+    public string ToSimpleString()
+    {
+        return $"שמחה: {Happiness:F1}/10 ({GetEmotionLevelDescription(Happiness)})\n" +
+               $"עצב: {Sadness:F1}/10 ({GetEmotionLevelDescription(Sadness)})\n" +
+               $"תסכול: {Frustration:F1}/10 ({GetEmotionLevelDescription(Frustration)})\n" +
+               $"שעמום: {Boredom:F1}/10 ({GetEmotionLevelDescription(Boredom)})\n" +
+               $"כעס: {Anger:F1}/10 ({GetEmotionLevelDescription(Anger)})";
+    }
+
+    /// <summary>
     /// Get a visual bar representation of an emotion value
+    /// Uses both Unicode and ASCII fallback
     /// </summary>
     private string GetEmotionBar(float value)
     {
         int filledBlocks = Mathf.RoundToInt(value);
         int emptyBlocks = 10 - filledBlocks;
-        string bar = new string('█', filledBlocks) + new string('░', emptyBlocks);
+
+        // Try Unicode blocks first (for better visual)
+        string bar = new string('■', filledBlocks) + new string('□', emptyBlocks);
+
+        return $"{bar} {value:F1}/10 ({GetEmotionLevelDescription(value)})";
+    }
+
+    /// <summary>
+    /// Get ASCII bar representation (guaranteed to work with any font)
+    /// </summary>
+    private string GetEmotionBarASCII(float value)
+    {
+        int filledBlocks = Mathf.RoundToInt(value);
+        int emptyBlocks = 10 - filledBlocks;
+        string bar = "[" + new string('=', filledBlocks) + new string('-', emptyBlocks) + "]";
         return $"{bar} {value:F1}/10";
     }
 
