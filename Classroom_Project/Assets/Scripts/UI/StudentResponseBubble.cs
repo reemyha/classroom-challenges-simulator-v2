@@ -62,9 +62,23 @@ public class StudentResponseBubble : MonoBehaviour
 
     void Start()
     {
-        // Find camera if not assigned
+        // Find camera with fallback
         if (mainCamera == null)
+        {
             mainCamera = Camera.main;
+            if (mainCamera == null)
+            {
+                mainCamera = FindObjectOfType<Camera>();
+                if (mainCamera != null)
+                {
+                    Debug.LogWarning($"[StudentResponseBubble] Camera.main is null. Using FindObjectOfType. Please tag your camera as 'MainCamera'!");
+                }
+                else
+                {
+                    Debug.LogError($"[StudentResponseBubble] No camera found in scene! Bubbles will not work.");
+                }
+            }
+        }
 
         // Setup canvas and UI elements (delayed to avoid interfering with spawner)
         SetupBubbleUI();
@@ -243,6 +257,10 @@ public class StudentResponseBubble : MonoBehaviour
             return;
         }
 
+        // Debug logging to help diagnose issues
+        Debug.Log($"[Bubble-{gameObject.name}] ShowResponse called with: '{response}'");
+        Debug.Log($"[Bubble-{gameObject.name}] Canvas:{responseCanvas != null}, Text:{responseText != null}, Camera:{mainCamera != null}");
+
         currentResponse = response;
         isAnswerMode = true;
 
@@ -298,6 +316,9 @@ public class StudentResponseBubble : MonoBehaviour
             HideBubble();
             return;
         }
+
+        // Debug logging
+        Debug.Log($"[Bubble-{gameObject.name}] ShowEagerBubble called with: '{previewText}'");
 
         currentResponse = previewText;
         isAnswerMode = false;
