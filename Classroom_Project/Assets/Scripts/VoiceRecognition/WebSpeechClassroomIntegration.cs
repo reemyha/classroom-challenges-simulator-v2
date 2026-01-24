@@ -176,14 +176,29 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
             return;
 
         string lower = transcript.ToLower().Trim();
-        
+
         if (logCommands)
             Debug.Log($"[VoiceCommand] Processing: '{transcript}'");
 
-        // Check for student name mentions
+        // Check for student name mentions FIRST
         StudentAgent targetStudent = DetectStudentMention(lower);
 
-        // Try to match command
+        // Check for student-specific commands (name + action)
+        if (targetStudent != null)
+        {
+            bool handledSpecificCommand = ProcessStudentSpecificCommand(lower, transcript, targetStudent);
+            if (handledSpecificCommand)
+            {
+                // Show feedback
+                if (teacherUI != null)
+                {
+                    teacherUI.ShowFeedback($"Voice: {transcript}", Color.cyan);
+                }
+                return; // Command was handled for specific student
+            }
+        }
+
+        // Try to match general command
         bool commandFound = false;
         foreach (var kvp in commandActions)
         {
@@ -193,7 +208,7 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
                 {
                     if (logCommands)
                         Debug.Log($"[VoiceCommand] Matched keyword: '{keyword}'");
-                    
+
                     kvp.Value?.Invoke();
                     commandFound = true;
                     break;
@@ -218,6 +233,139 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         if (teacherUI != null)
         {
             teacherUI.ShowFeedback($"Voice: {transcript}", Color.cyan);
+        }
+    }
+
+    /// <summary>
+    /// Process commands directed at a specific student by name
+    /// Returns true if a command was handled
+    /// </summary>
+    private bool ProcessStudentSpecificCommand(string lowerText, string originalText, StudentAgent student)
+    {
+        // Discipline/Yell keywords (Hebrew and English)
+        string[] disciplineKeywords = {
+            "די", "תפסיק", "תשתוק", "שקט", "מספיק", "תירגע", "הפסק", "אל",
+            "stop", "quiet", "enough", "be quiet", "stop talking", "settle down"
+        };
+
+        // Praise keywords (Hebrew and English)
+        string[] praiseKeywords = {
+            "כל הכבוד", "יפה מאוד", "מצוין", "נהדר", "מעולה", "יופי", "טוב מאוד", "בראבו",
+            "good job", "well done", "excellent", "great", "amazing", "perfect", "bravo"
+        };
+
+        // Check for discipline command on specific student
+        foreach (string keyword in disciplineKeywords)
+        {
+            if (lowerText.Contains(keyword))
+            {
+                ExecuteActionOnStudent(ActionType.Yell, student);
+                // Show student's hurt reaction in bubble
+                ShowStudentEmotionalReaction(student, "discipline");
+                if (logCommands)
+                    Debug.Log($"[VoiceCommand] Disciplined {student.studentName} - student feels hurt");
+                return true;
+            }
+        }
+
+        // Check for praise command on specific student
+        foreach (string keyword in praiseKeywords)
+        {
+            if (lowerText.Contains(keyword))
+            {
+                ExecuteActionOnStudent(ActionType.Praise, student);
+                // Show student's happy reaction in bubble
+                ShowStudentEmotionalReaction(student, "praise");
+                if (logCommands)
+                    Debug.Log($"[VoiceCommand] Praised {student.studentName} - student feels happy");
+                return true;
+            }
+        }
+
+        return false; // No specific command found
+    }
+
+    /// <summary>
+    /// Execute an action on a specific student
+    /// </summary>
+    private void ExecuteActionOnStudent(ActionType actionType, StudentAgent student)
+    {
+        if (classroomManager == null || student == null)
+            return;
+
+        TeacherAction action = new TeacherAction
+        {
+            Type = actionType,
+            TargetStudentId = student.studentId,
+            Context = $"Voice: {actionType} on {student.studentName}"
+        };
+
+        // Apply the action through classroom manager
+        classroomManager.ExecuteTeacherAction(action);
+
+        // Also apply emotional effect directly for enhanced reaction
+        float intensity = 1.5f; // Stronger effect when called out by name
+        student.emotions.ApplyTeacherAction(action, intensity);
+    }
+
+    /// <summary>
+    /// Show student's emotional reaction in their speech bubble
+    /// </summary>
+    private void ShowStudentEmotionalReaction(StudentAgent student, string reactionType)
+    {
+        var bubble = student.GetComponentInChildren<StudentResponseBubble>();
+        if (bubble == null) return;
+
+        string reaction = "";
+
+        if (reactionType == "discipline")
+        {
+            // Hurt/offended reactions based on personality
+            if (student.sensitivity > 0.7f)
+            {
+                // Very sensitive - gets very hurt
+                string[] sensitiveReactions = { "...", "למה אני?", "אני לא עשיתי כלום", "זה לא הוגן" };
+                reaction = sensitiveReactions[Random.Range(0, sensitiveReactions.Length)];
+            }
+            else if (student.rebelliousness > 0.7f)
+            {
+                // Rebellious - gets angry
+                string[] rebelliousReactions = { "מה?!", "אני לא עשיתי כלום!", "למה רק אני?!", "לא הוגן!" };
+                reaction = rebelliousReactions[Random.Range(0, rebelliousReactions.Length)];
+            }
+            else
+            {
+                // Normal reaction
+                string[] normalReactions = { "סליחה...", "בסדר...", "...", "טוב טוב" };
+                reaction = normalReactions[Random.Range(0, normalReactions.Length)];
+            }
+        }
+        else if (reactionType == "praise")
+        {
+            // Happy reactions based on personality
+            if (student.extroversion > 0.7f)
+            {
+                // Extroverted - very expressive
+                string[] extrovertReactions = { "תודה!", "יש!", "מעולה!", "אני הכי!", "יאללה!" };
+                reaction = extrovertReactions[Random.Range(0, extrovertReactions.Length)];
+            }
+            else if (student.extroversion < 0.3f)
+            {
+                // Introverted - shy reaction
+                string[] introvertReactions = { "תודה...", "...", "אה... תודה", "☺" };
+                reaction = introvertReactions[Random.Range(0, introvertReactions.Length)];
+            }
+            else
+            {
+                // Normal reaction
+                string[] normalReactions = { "תודה!", "יופי!", "כיף!", "תודה המורה" };
+                reaction = normalReactions[Random.Range(0, normalReactions.Length)];
+            }
+        }
+
+        if (!string.IsNullOrEmpty(reaction))
+        {
+            bubble.ShowResponse(reaction);
         }
     }
 

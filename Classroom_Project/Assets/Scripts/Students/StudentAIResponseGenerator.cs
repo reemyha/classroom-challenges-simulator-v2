@@ -582,6 +582,132 @@ public class StudentAIResponseGenerator : MonoBehaviour
                 responses.AddRange(new[] { "Good morning!", "Morning!", "Hi!" });
             }
         }
+        // "Did you do homework?" / "עשיתם שיעורי בית?"
+        else if (question.Contains("שיעורי בית") || question.Contains("homework"))
+        {
+            if (useHebrew)
+            {
+                if (student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "כן!", "עשיתי הכל!", "ברור!" });
+                else if (isBored || student.academicMotivation < 0.4f)
+                    responses.AddRange(new[] { "אופס...", "שכחתי...", "כמעט...", "לא הספקתי" });
+                else
+                    responses.AddRange(new[] { "כן", "עשיתי", "רוב זה", "כמעט הכל" });
+            }
+            else
+            {
+                if (student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "Yes!", "All done!", "Of course!" });
+                else
+                    responses.AddRange(new[] { "Oops...", "I forgot...", "Almost..." });
+            }
+        }
+        // "Who's talking?" / "מי מדבר?"
+        else if (question.Contains("מי מדבר") || question.Contains("who's talking") || question.Contains("who is talking"))
+        {
+            if (useHebrew)
+            {
+                responses.AddRange(new[] { "לא אני!", "זה לא אני", "...", "מה?" });
+            }
+            else
+            {
+                responses.AddRange(new[] { "Not me!", "Wasn't me", "...", "What?" });
+            }
+        }
+        // "Are you listening?" / "אתם מקשיבים?"
+        else if (question.Contains("מקשיבים") || question.Contains("מקשיב") || question.Contains("listening") || question.Contains("paying attention"))
+        {
+            if (useHebrew)
+            {
+                if (isBored)
+                    responses.AddRange(new[] { "כן כן...", "אה... כן", "מה?", "בטח..." });
+                else
+                    responses.AddRange(new[] { "כן!", "מקשיבים!", "ברור!", "כן המורה" });
+            }
+            else
+            {
+                if (isBored)
+                    responses.AddRange(new[] { "Yeah yeah...", "Uh... yes", "What?", "Sure..." });
+                else
+                    responses.AddRange(new[] { "Yes!", "Listening!", "Of course!" });
+            }
+        }
+        // "Do you like it?" / "אתם אוהבים?"
+        else if (question.Contains("אוהבים") || question.Contains("אהבתם") || question.Contains("נהנים") ||
+                 question.Contains("do you like") || question.Contains("enjoying"))
+        {
+            if (useHebrew)
+            {
+                if (isHappy)
+                    responses.AddRange(new[] { "כן!", "מאוד!", "אוהבים!", "זה כיף!" });
+                else if (isBored)
+                    responses.AddRange(new[] { "ככה ככה...", "לא ממש...", "בסדר..." });
+                else
+                    responses.AddRange(new[] { "כן", "זה בסדר", "נחמד", "אוקיי" });
+            }
+            else
+            {
+                if (isHappy)
+                    responses.AddRange(new[] { "Yes!", "A lot!", "Love it!", "It's fun!" });
+                else
+                    responses.AddRange(new[] { "So-so...", "Not really...", "It's okay..." });
+            }
+        }
+        // "What's the answer?" / "מה התשובה?"
+        else if (question.Contains("התשובה") || question.Contains("the answer"))
+        {
+            if (useHebrew)
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "אני יודע!", "יש לי!", "רגע...", "אממ..." });
+                else
+                    responses.AddRange(new[] { "לא יודע", "מה?", "...", "לא בטוח" });
+            }
+            else
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "I know!", "I got it!", "Wait...", "Umm..." });
+                else
+                    responses.AddRange(new[] { "Don't know", "What?", "...", "Not sure" });
+            }
+        }
+        // "Finished?" / "סיימתם?"
+        else if (question.Contains("סיימתם") || question.Contains("סיימת") || question.Contains("גמרתם") ||
+                 question.Contains("finished") || question.Contains("done"))
+        {
+            if (useHebrew)
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "כן!", "סיימתי!", "כבר מזמן!", "עוד רגע" });
+                else
+                    responses.AddRange(new[] { "כמעט...", "עוד קצת", "לא עדיין", "רגע..." });
+            }
+            else
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "Yes!", "Done!", "Already!", "Almost" });
+                else
+                    responses.AddRange(new[] { "Almost...", "A bit more", "Not yet", "Wait..." });
+            }
+        }
+        // "Do you need help?" / "צריכים עזרה?"
+        else if (question.Contains("עזרה") || question.Contains("help"))
+        {
+            if (useHebrew)
+            {
+                if (isFrustrated || student.emotions.Sadness > 6f)
+                    responses.AddRange(new[] { "כן...", "קצת", "יכול להיות", "כן בבקשה" });
+                else
+                    responses.AddRange(new[] { "לא צריך", "הכל טוב", "בסדר", "לא תודה" });
+            }
+            else
+            {
+                if (isFrustrated || student.emotions.Sadness > 6f)
+                    responses.AddRange(new[] { "Yes...", "A little", "Maybe", "Yes please" });
+                else
+                    responses.AddRange(new[] { "No need", "All good", "Fine", "No thanks" });
+            }
+        }
 
         if (responses.Count > 0)
         {
