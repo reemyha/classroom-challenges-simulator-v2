@@ -18,6 +18,13 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
     public bool enableQuestionDetection = true; // Enable students to respond to questions
     [Tooltip("Auto-start voice recognition when scene loads (requires user permission)")]
     public bool autoStartVoiceRecognition = false;
+    [Tooltip("Allow multiple students to respond with full answers (not just eager bubbles)")]
+    public bool allowMultipleResponders = true;
+    [Tooltip("Maximum number of students that can respond to a classwide question")]
+    [Range(1, 10)]
+    public int maxResponders = 4;
+    [Tooltip("Delay between each student's response (in seconds)")]
+    public float responseDelayBetweenStudents = 0.5f;
 
     [Header("Debug")]
     [Tooltip("Press this key to trigger a test question (for debugging bubbles without voice)")]
@@ -302,6 +309,7 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
             // Classwide question - trigger all students' question responders
             // Each student will independently decide whether to show eagerness
             int eagerStudentCount = 0;
+            List<StudentAgent> respondingStudents = new List<StudentAgent>();
 
             foreach (var student in classroomManager.activeStudents)
             {
@@ -327,11 +335,31 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
 
                 // Count how many students are showing eagerness
                 if (responder.HasAnswerReady())
+                {
                     eagerStudentCount++;
+                    respondingStudents.Add(student);
+                }
             }
 
             if (logCommands)
                 Debug.Log($"[VoiceCommand] {eagerStudentCount} student(s) are eager to answer");
+
+            // If multiple responders allowed, trigger full responses from multiple students
+            if (allowMultipleResponders && respondingStudents.Count > 0)
+            {
+                // Shuffle the list and take up to maxResponders
+                ShuffleList(respondingStudents);
+                int respondersToTrigger = Mathf.Min(respondingStudents.Count, maxResponders);
+
+                for (int i = 0; i < respondersToTrigger; i++)
+                {
+                    float delay = i * responseDelayBetweenStudents;
+                    StartCoroutine(DelayedStudentResponse(respondingStudents[i], question, delay));
+                }
+
+                if (logCommands)
+                    Debug.Log($"[VoiceCommand] Triggered full responses from {respondersToTrigger} students");
+            }
         }
     }
 
@@ -450,6 +478,20 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
             classroomManager.ExecuteBagItem(itemType);
             if (logCommands)
                 Debug.Log($"[VoiceCommand] Used {itemType} classwide");
+        }
+    }
+
+    /// <summary>
+    /// Shuffle a list using Fisher-Yates algorithm
+    /// </summary>
+    private void ShuffleList<T>(List<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            T temp = list[i];
+            list[i] = list[j];
+            list[j] = temp;
         }
     }
 

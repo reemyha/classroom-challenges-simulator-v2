@@ -190,7 +190,7 @@ public class StudentAIResponseGenerator : MonoBehaviour
     private string GenerateFallbackResponse(StudentAgent student, string question)
     {
         string lowerQuestion = question.ToLower();
-        
+
         // Determine response style based on emotions
         bool isHappy = student.emotions.Happiness >= 7f;
         bool isSad = student.emotions.Sadness >= 7f;
@@ -199,15 +199,29 @@ public class StudentAIResponseGenerator : MonoBehaviour
         bool isFrustrated = student.emotions.Frustration >= 7f;
         bool isShy = student.extroversion < 0.3f;
         bool isMotivated = student.academicMotivation >= 0.7f;
-        
+        bool isNeutral = !isHappy && !isSad && !isAngry && !isBored && !isFrustrated;
+
         // Check if question is in Hebrew
         bool isHebrew = ContainsHebrew(question);
-        
+
         List<string> responses = new List<string>();
-        
+
         // Generate responses based on emotional state
         // Default to Hebrew if preferHebrew is true, otherwise use question language
         bool useHebrew = preferHebrew || isHebrew;
+
+        // Check for feeling/greeting questions first
+        if (IsFeelingQuestion(lowerQuestion))
+        {
+            return GenerateFeelingResponse(student, useHebrew, isHappy, isSad, isAngry, isBored, isFrustrated, isNeutral);
+        }
+
+        // Check for other generic classroom questions
+        string genericResponse = CheckGenericQuestions(lowerQuestion, student, useHebrew);
+        if (!string.IsNullOrEmpty(genericResponse))
+        {
+            return genericResponse;
+        }
         
         if (isHappy && isMotivated)
         {
@@ -311,6 +325,273 @@ public class StudentAIResponseGenerator : MonoBehaviour
                 return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Check if the question is about feelings/mood
+    /// </summary>
+    private bool IsFeelingQuestion(string question)
+    {
+        string[] feelingIndicators = {
+            // Hebrew
+            "מרגישים", "מרגיש", "שלומכם", "שלומך", "שלום", "איך אתם", "איך את", "מה נשמע",
+            "מה קורה", "מה המצב", "הכל בסדר", "בסדר", "מה איתכם", "מה איתך",
+            // English
+            "how are you", "how do you feel", "feeling", "how's everyone", "what's up", "how's it going"
+        };
+
+        foreach (string indicator in feelingIndicators)
+        {
+            if (question.Contains(indicator))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Generate response based on student's emotional state for feeling questions
+    /// </summary>
+    private string GenerateFeelingResponse(StudentAgent student, bool useHebrew, bool isHappy, bool isSad, bool isAngry, bool isBored, bool isFrustrated, bool isNeutral)
+    {
+        List<string> responses = new List<string>();
+
+        if (useHebrew)
+        {
+            if (isHappy)
+            {
+                responses.AddRange(new[] {
+                    "בסדר המורה, איך את?",
+                    "מעולה!",
+                    "טוב מאוד!",
+                    "סבבה!",
+                    "הכל טוב!",
+                    "בסדר גמור!"
+                });
+            }
+            else if (isNeutral)
+            {
+                responses.AddRange(new[] {
+                    "בסדר",
+                    "ככה ככה",
+                    "בסדר גמור",
+                    "סבבה",
+                    "הכל טוב"
+                });
+            }
+            else if (isSad)
+            {
+                responses.AddRange(new[] {
+                    "לא טוב",
+                    "לא כל כך טוב...",
+                    "ככה...",
+                    "יכול להיות יותר טוב",
+                    "לא משהו"
+                });
+            }
+            else if (isFrustrated || isBored)
+            {
+                responses.AddRange(new[] {
+                    "משעמם לנו",
+                    "משעמם...",
+                    "כבר רוצים הפסקה",
+                    "מתי הפסקה?",
+                    "עייפים...",
+                    "ממש משעמם"
+                });
+            }
+            else if (isAngry)
+            {
+                responses.AddRange(new[] {
+                    "לא טוב",
+                    "לא בכיף",
+                    "רע",
+                    "עצבני היום",
+                    "לא במצב רוח"
+                });
+            }
+        }
+        else
+        {
+            if (isHappy)
+            {
+                responses.AddRange(new[] { "Good!", "Great!", "Fine, thanks!", "Doing well!" });
+            }
+            else if (isNeutral)
+            {
+                responses.AddRange(new[] { "Okay", "Fine", "Alright", "So-so" });
+            }
+            else if (isSad)
+            {
+                responses.AddRange(new[] { "Not great...", "Could be better", "Not so good" });
+            }
+            else if (isFrustrated || isBored)
+            {
+                responses.AddRange(new[] { "Bored...", "When's break?", "Tired..." });
+            }
+            else if (isAngry)
+            {
+                responses.AddRange(new[] { "Not good", "Bad", "Not in the mood" });
+            }
+        }
+
+        if (responses.Count > 0)
+        {
+            string response = responses[Random.Range(0, responses.Count)];
+            if (logResponses)
+                Debug.Log($"[StudentAI] {student.studentName} says: {response}");
+            return response;
+        }
+
+        return useHebrew ? "בסדר" : "Okay";
+    }
+
+    /// <summary>
+    /// Check for other generic classroom questions and return appropriate responses
+    /// </summary>
+    private string CheckGenericQuestions(string question, StudentAgent student, bool useHebrew)
+    {
+        bool isHappy = student.emotions.Happiness >= 7f;
+        bool isBored = student.emotions.Boredom >= 7f;
+        bool isFrustrated = student.emotions.Frustration >= 7f;
+
+        List<string> responses = new List<string>();
+
+        // "Did you understand?" / "הבנתם?"
+        if (question.Contains("הבנתם") || question.Contains("הבנת") || question.Contains("מובן") ||
+            question.Contains("understand") || question.Contains("got it") || question.Contains("clear"))
+        {
+            if (useHebrew)
+            {
+                if (isHappy || student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "כן!", "הבנתי!", "ברור!", "כן המורה" });
+                else if (isBored)
+                    responses.AddRange(new[] { "כן כן...", "בסדר...", "אוקיי" });
+                else
+                    responses.AddRange(new[] { "לא בטוח...", "אפשר שוב?", "לא ממש...", "יכול להיות" });
+            }
+            else
+            {
+                if (isHappy || student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "Yes!", "Got it!", "Clear!" });
+                else
+                    responses.AddRange(new[] { "Not sure...", "Can you repeat?", "Maybe..." });
+            }
+        }
+        // "Ready?" / "מוכנים?"
+        else if (question.Contains("מוכנים") || question.Contains("מוכן") || question.Contains("ready"))
+        {
+            if (useHebrew)
+            {
+                if (isHappy)
+                    responses.AddRange(new[] { "כן!", "מוכנים!", "יאללה!", "בוא!" });
+                else if (isBored || isFrustrated)
+                    responses.AddRange(new[] { "לא...", "עוד רגע", "רגע...", "אממ..." });
+                else
+                    responses.AddRange(new[] { "כן", "מוכן", "בסדר", "אוקיי" });
+            }
+            else
+            {
+                if (isHappy)
+                    responses.AddRange(new[] { "Yes!", "Ready!", "Let's go!" });
+                else
+                    responses.AddRange(new[] { "Not yet...", "One moment", "Okay" });
+            }
+        }
+        // "Any questions?" / "יש שאלות?"
+        else if (question.Contains("שאלות") || question.Contains("שאלה") || question.Contains("questions"))
+        {
+            if (useHebrew)
+            {
+                if (student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "כן, יש לי שאלה!", "אפשר לשאול?", "יש לי!" });
+                else
+                    responses.AddRange(new[] { "לא", "אין", "לא כרגע", "הכל ברור" });
+            }
+            else
+            {
+                if (student.academicMotivation > 0.7f)
+                    responses.AddRange(new[] { "Yes, I have a question!", "Can I ask?" });
+                else
+                    responses.AddRange(new[] { "No", "None", "All clear" });
+            }
+        }
+        // "Want a break?" / "רוצים הפסקה?"
+        else if (question.Contains("הפסקה") || question.Contains("break"))
+        {
+            if (useHebrew)
+            {
+                responses.AddRange(new[] { "כן!", "כן בבקשה!", "יאללה הפסקה!", "סוף סוף!", "כן המורה!" });
+            }
+            else
+            {
+                responses.AddRange(new[] { "Yes!", "Yes please!", "Finally!", "Yes teacher!" });
+            }
+        }
+        // "Who wants to answer?" / "מי רוצה לענות?"
+        else if (question.Contains("מי רוצה") || question.Contains("who wants"))
+        {
+            if (useHebrew)
+            {
+                if (isHappy && student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "אני!", "אני רוצה!", "בחר בי!", "אני אני!" });
+                else if (isBored)
+                    responses.AddRange(new[] { "...", "לא אני", "מישהו אחר" });
+                else
+                    responses.AddRange(new[] { "אולי אני...", "יכול להיות...", "אממ..." });
+            }
+            else
+            {
+                if (isHappy && student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "Me!", "I want to!", "Pick me!" });
+                else
+                    responses.AddRange(new[] { "...", "Not me", "Someone else" });
+            }
+        }
+        // "What did you learn today?" / "מה למדתם היום?"
+        else if (question.Contains("למדתם") || question.Contains("למדנו") || question.Contains("learn") || question.Contains("learned"))
+        {
+            if (useHebrew)
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "דברים מעניינים!", "הרבה!", "זה היה מגניב" });
+                else if (isBored)
+                    responses.AddRange(new[] { "לא זוכר...", "מה?", "לא יודע" });
+                else
+                    responses.AddRange(new[] { "כמה דברים", "יש לי רעיון", "משהו..." });
+            }
+            else
+            {
+                if (student.academicMotivation > 0.6f)
+                    responses.AddRange(new[] { "Interesting stuff!", "A lot!", "It was cool" });
+                else
+                    responses.AddRange(new[] { "Don't remember...", "What?", "Something..." });
+            }
+        }
+        // "Good morning" / "בוקר טוב"
+        else if (question.Contains("בוקר טוב") || question.Contains("good morning"))
+        {
+            if (useHebrew)
+            {
+                if (isHappy)
+                    responses.AddRange(new[] { "בוקר טוב!", "בוקר אור!", "בוקר טוב המורה!" });
+                else
+                    responses.AddRange(new[] { "בוקר...", "בוקר טוב", "היי..." });
+            }
+            else
+            {
+                responses.AddRange(new[] { "Good morning!", "Morning!", "Hi!" });
+            }
+        }
+
+        if (responses.Count > 0)
+        {
+            string response = responses[Random.Range(0, responses.Count)];
+            if (logResponses)
+                Debug.Log($"[StudentAI] {student.studentName} says: {response}");
+            return response;
+        }
+
+        return null; // No generic question matched
     }
 
     /// <summary>
