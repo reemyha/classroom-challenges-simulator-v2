@@ -26,6 +26,7 @@ public class TeacherUI : MonoBehaviour
     public Button giveBreakButton;
     public Button removeStudentButton;
     public Button switchPlacesButton;
+    public Button endSessionButton;
 
     [Header("Student Selection")]
     public TextMeshProUGUI selectedStudentText;
@@ -90,6 +91,12 @@ public class TeacherUI : MonoBehaviour
     {
         UpdateSessionTime();
         CheckForStudentSelection();
+
+        // Check for end session key (Escape)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            OnEndSessionButtonClicked();
+        }
     }
 
     /// <summary>
@@ -114,6 +121,20 @@ public class TeacherUI : MonoBehaviour
 
         if (switchPlacesButton != null)
             switchPlacesButton.onClick.AddListener(OnSwitchPlacesButtonClicked);
+
+        if (endSessionButton != null)
+            endSessionButton.onClick.AddListener(OnEndSessionButtonClicked);
+    }
+
+    /// <summary>
+    /// Handle end session button click
+    /// </summary>
+    void OnEndSessionButtonClicked()
+    {
+        if (classroomManager != null)
+        {
+            EndSession();
+        }
     }
 
     /// <summary>
@@ -698,16 +719,27 @@ public class TeacherUI : MonoBehaviour
     }
 
     /// <summary>
-    /// End session and show summary
+    /// End session and show feedback panel
     /// </summary>
     public void EndSession()
     {
+        if (classroomManager == null) return;
+
+        // End the session - ClassroomManager will show the feedback panel
         SessionReport report = classroomManager.EndSession();
-        ShowSessionSummary(report);
+
+        // Hide action menu since session is over
+        if (actionMenu != null)
+            actionMenu.SetActive(false);
+
+        // Deselect any student
+        DeselectStudent();
+
+        Debug.Log($"Session ended with score: {report.score:F1}");
     }
 
     /// <summary>
-    /// Display session performance summary
+    /// Display session performance summary (legacy - feedback panel is now used)
     /// </summary>
     void ShowSessionSummary(SessionReport report)
     {
