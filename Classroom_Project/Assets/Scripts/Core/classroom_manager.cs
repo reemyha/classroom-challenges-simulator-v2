@@ -1,7 +1,10 @@
 using UnityEngine;
+using UnityEngine.Networking;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 /// <summary>
 /// Central controller for classroom simulation.
@@ -37,6 +40,15 @@ public class ClassroomManager : MonoBehaviour
     public int disruptionCount = 0;
     public int positiveInterventions = 0;
     public int negativeInterventions = 0;
+
+    [Header("Session Feedback Tracking")]
+    private HashSet<string> studentsInteractedWith = new HashSet<string>();
+    private int totalDisruptionsOccurred = 0;
+    private int disruptionsAddressed = 0;
+    private HashSet<string> disruptiveStudentsAddressed = new HashSet<string>();
+
+    [Header("Session Feedback Panel")]
+    public SessionFeedbackPanelUI sessionFeedbackPanel;
     
     // Track which students are eager to answer
     private Dictionary<StudentAgent, bool> studentEagernessState = new Dictionary<StudentAgent, bool>();
@@ -97,6 +109,12 @@ public class ClassroomManager : MonoBehaviour
             startTime = System.DateTime.Now,
             teacherActions = new List<TeacherAction>()
         };
+
+        // Reset feedback tracking
+        studentsInteractedWith = new HashSet<string>();
+        totalDisruptionsOccurred = 0;
+        disruptionsAddressed = 0;
+        disruptiveStudentsAddressed = new HashSet<string>();
 
         Debug.Log($"Session initialized: {currentSession.sessionId}");
     }
@@ -333,12 +351,26 @@ public class ClassroomManager : MonoBehaviour
 
         // Find target student
         StudentAgent targetStudent = activeStudents.FirstOrDefault(s => s.studentId == action.TargetStudentId);
-        
+
         if (targetStudent != null)
         {
+            // Track student interaction
+            studentsInteractedWith.Add(action.TargetStudentId);
+
+            // Track if this addresses a disruptive student
+            if (targetStudent.currentState == StudentState.Arguing ||
+                targetStudent.currentState == StudentState.SideTalk)
+            {
+                if (!disruptiveStudentsAddressed.Contains(action.TargetStudentId))
+                {
+                    disruptiveStudentsAddressed.Add(action.TargetStudentId);
+                    disruptionsAddressed++;
+                }
+            }
+
             targetStudent.ReceiveTeacherAction(action);
             Debug.Log($"Teacher action executed: {action.Type} on {targetStudent.studentName}");
-            
+
             // Update UI feedback
             if (teacherUI != null)
                 teacherUI.ShowActionFeedback(action, targetStudent);
@@ -379,14 +411,22 @@ public class ClassroomManager : MonoBehaviour
         int activeInClass = activeStudents.Count(s => s != null && !s.IsOnBreak());
         if (activeInClass > 0)
         {
-            int listeningCount = activeStudents.Count(s => s != null && !s.IsOnBreak() && 
+            int listeningCount = activeStudents.Count(s => s != null && !s.IsOnBreak() &&
                 (s.currentState == StudentState.Listening || s.currentState == StudentState.Engaged));
             overallClassEngagement = (float)listeningCount / activeInClass;
         }
 
-        // Count disruptions (exclude students on break)
-        disruptionCount = activeStudents.Count(s => s != null && !s.IsOnBreak() && 
+        // Count current disruptions (exclude students on break)
+        int currentDisruptions = activeStudents.Count(s => s != null && !s.IsOnBreak() &&
             (s.currentState == StudentState.Arguing || s.currentState == StudentState.SideTalk));
+
+        // Track total disruptions that occurred (cumulative)
+        if (currentDisruptions > disruptionCount)
+        {
+            totalDisruptionsOccurred += (currentDisruptions - disruptionCount);
+        }
+
+        disruptionCount = currentDisruptions;
 
         // Update UI
         if (teacherUI != null)
@@ -665,12 +705,91 @@ public class ClassroomManager : MonoBehaviour
             score = CalculateSessionScore()
         };
 
+        // Generate feedback data
+        SessionFeedbackData feedback = GenerateSessionFeedback(report);
+
         Debug.Log($"Session ended. Score: {report.score}");
-        
-        // Save to database (MongoDB integration would go here)
+
+        // Show feedback panel
+        if (sessionFeedbackPanel != null)
+        {
+            sessionFeedbackPanel.ShowFeedback(feedback);
+        }
+
+        // Save to database
         SaveSessionToDatabase(report);
 
+        // Log session to backend API
+        StartCoroutine(LogSessionToDatabase(feedback));
+
         return report;
+    }
+
+    /// <summary>
+    /// Generate session feedback data from report
+    /// </summary>
+    SessionFeedbackData GenerateSessionFeedback(SessionReport report)
+    {
+        // Count satisfied students (happiness >= 6)
+        int satisfiedCount = activeStudents.Count(s => s != null && s.emotions.Happiness >= 6f);
+        int totalStudents = activeStudents.Count(s => s != null);
+
+        // Calculate interaction percentage
+        float interactionPercentage = totalStudents > 0
+            ? (float)studentsInteractedWith.Count / totalStudents
+            : 0f;
+
+        // Calculate noise handling score (0-100)
+        float noiseHandlingScore = CalculateNoiseHandlingScore();
+
+        SessionFeedbackData feedback = new SessionFeedbackData
+        {
+            sessionId = currentSession.sessionId,
+            sessionDate = currentSession.startTime,
+            lessonDurationSeconds = currentSession.duration,
+            satisfiedStudentsCount = satisfiedCount,
+            totalStudentsCount = totalStudents,
+            studentInteractionPercentage = interactionPercentage,
+            noiseHandlingScore = noiseHandlingScore,
+            totalDisruptions = totalDisruptionsOccurred,
+            disruptionsHandled = disruptionsAddressed,
+            overallScore = report.score,
+            totalTeacherActions = report.totalActions,
+            positiveActions = report.positiveActions,
+            negativeActions = report.negativeActions,
+            averageEngagement = report.averageEngagement
+        };
+
+        return feedback;
+    }
+
+    /// <summary>
+    /// Calculate noise handling score (0-100)
+    /// </summary>
+    float CalculateNoiseHandlingScore()
+    {
+        if (totalDisruptionsOccurred == 0)
+        {
+            // No disruptions = perfect score
+            return 100f;
+        }
+
+        // Base score on percentage of disruptions addressed
+        float addressedRatio = (float)disruptionsAddressed / Mathf.Max(1, totalDisruptionsOccurred);
+
+        // Factor in response quality (positive vs negative interventions for disruptions)
+        float responseQuality = positiveInterventions > negativeInterventions ? 1.2f : 0.8f;
+
+        // Calculate score
+        float score = addressedRatio * 80f * responseQuality;
+
+        // Bonus for low total disruptions (good prevention)
+        if (totalDisruptionsOccurred <= 2)
+            score += 20f;
+        else if (totalDisruptionsOccurred <= 5)
+            score += 10f;
+
+        return Mathf.Clamp(score, 0f, 100f);
     }
 
     /// <summary>
@@ -812,15 +931,114 @@ public class ClassroomManager : MonoBehaviour
     /// </summary>
     void SaveSessionToDatabase(SessionReport report)
     {
-        // TODO: Implement MongoDB integration
-        Debug.Log("Session saved to database (placeholder)");
-        
         // Also save to local session history for UI display
         if (report != null)
         {
             TeacherHomeSceneUI.SaveSessionToHistory(report);
         }
+
+        Debug.Log("Session saved to local history");
     }
+
+    /// <summary>
+    /// Log session feedback to backend database
+    /// </summary>
+    IEnumerator LogSessionToDatabase(SessionFeedbackData feedback)
+    {
+        if (AuthenticationManager.Instance == null || !AuthenticationManager.Instance.isLoggedIn)
+        {
+            Debug.LogWarning("Cannot log session - user not logged in");
+            yield break;
+        }
+
+        string apiUrl = AuthenticationManager.Instance.apiBaseUrl;
+        if (string.IsNullOrEmpty(apiUrl))
+        {
+            Debug.LogWarning("API base URL not configured");
+            yield break;
+        }
+
+        // Prepare session log data
+        SessionLogRequest logRequest = new SessionLogRequest
+        {
+            userId = AuthenticationManager.Instance.currentUser?.id ?? "",
+            sessionId = feedback.sessionId,
+            sessionDate = feedback.sessionDate.ToString("o"),
+            lessonDurationSeconds = feedback.lessonDurationSeconds,
+            satisfiedStudentsCount = feedback.satisfiedStudentsCount,
+            totalStudentsCount = feedback.totalStudentsCount,
+            studentInteractionPercentage = feedback.studentInteractionPercentage,
+            noiseHandlingScore = feedback.noiseHandlingScore,
+            totalDisruptions = feedback.totalDisruptions,
+            disruptionsHandled = feedback.disruptionsHandled,
+            overallScore = feedback.overallScore,
+            totalTeacherActions = feedback.totalTeacherActions,
+            positiveActions = feedback.positiveActions,
+            negativeActions = feedback.negativeActions,
+            averageEngagement = feedback.averageEngagement
+        };
+
+        string json = JsonUtility.ToJson(logRequest);
+        string url = CombineUrl(apiUrl, "/api/sessions/log");
+
+        Debug.Log($"Logging session to: {url}");
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 15;
+
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"Session logged to database successfully: {feedback.sessionId}");
+            }
+            else
+            {
+                Debug.LogWarning($"Failed to log session to database: {request.error}");
+                // Session is still saved locally, so this is not critical
+            }
+        }
+    }
+
+    /// <summary>
+    /// Combine base URL with path
+    /// </summary>
+    static string CombineUrl(string baseUrl, string path)
+    {
+        if (string.IsNullOrEmpty(baseUrl)) return path ?? "";
+        if (string.IsNullOrEmpty(path)) return baseUrl;
+        if (baseUrl.EndsWith("/")) baseUrl = baseUrl.Substring(0, baseUrl.Length - 1);
+        if (!path.StartsWith("/")) path = "/" + path;
+        return baseUrl + path;
+    }
+}
+
+/// <summary>
+/// Request structure for session log API
+/// </summary>
+[Serializable]
+public class SessionLogRequest
+{
+    public string userId;
+    public string sessionId;
+    public string sessionDate;
+    public float lessonDurationSeconds;
+    public int satisfiedStudentsCount;
+    public int totalStudentsCount;
+    public float studentInteractionPercentage;
+    public float noiseHandlingScore;
+    public int totalDisruptions;
+    public int disruptionsHandled;
+    public float overallScore;
+    public int totalTeacherActions;
+    public int positiveActions;
+    public int negativeActions;
+    public float averageEngagement;
 }
 
 /// <summary>
