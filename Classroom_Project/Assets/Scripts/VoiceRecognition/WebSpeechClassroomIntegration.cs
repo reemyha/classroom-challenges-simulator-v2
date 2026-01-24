@@ -178,9 +178,17 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         }
 
         // Check if teacher asked a question - make students respond
-        if (enableQuestionDetection && IsQuestion(transcript))
+        bool isQuestion = IsQuestion(transcript);
+        Debug.Log($"[QuestionDetection] enableQuestionDetection={enableQuestionDetection}, IsQuestion={isQuestion}, transcript='{transcript}'");
+
+        if (enableQuestionDetection && isQuestion)
         {
+            Debug.Log($"[QuestionDetection] Processing question: '{transcript}'");
             ProcessTeacherQuestion(transcript, targetStudent);
+        }
+        else if (!enableQuestionDetection)
+        {
+            Debug.LogWarning("[QuestionDetection] Question detection is DISABLED in Inspector!");
         }
 
         // Show feedback
@@ -196,9 +204,13 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
     private bool IsQuestion(string text)
     {
         if (string.IsNullOrEmpty(text))
+        {
+            Debug.Log("[IsQuestion] Text is null or empty - returning false");
             return false;
-            
+        }
+
         string lower = text.ToLower().Trim();
+        Debug.Log($"[IsQuestion] Analyzing: '{text}' (lowercase: '{lower}')");
         
         // Check for question words (English and Hebrew)
         string[] questionIndicators = {
@@ -209,27 +221,41 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         foreach (string indicator in questionIndicators)
         {
             if (lower.Contains(indicator))
+            {
+                Debug.Log($"[IsQuestion] Found question indicator '{indicator}' - returning TRUE");
                 return true;
+            }
         }
-        
+
         // Check for question marks (if transcribed)
         if (text.Contains("?") || text.EndsWith("?"))
+        {
+            Debug.Log($"[IsQuestion] Found question mark '?' - returning TRUE");
             return true;
+        }
         
         // Check for question patterns in Hebrew (more comprehensive)
         if (ContainsHebrew(text))
         {
+            Debug.Log("[IsQuestion] Text contains Hebrew - checking Hebrew question patterns");
+
             // Hebrew question words
-            if (lower.Contains("איזה") || lower.Contains("מי") || lower.Contains("מה") || 
+            if (lower.Contains("איזה") || lower.Contains("מי") || lower.Contains("מה") ||
                 lower.Contains("למה") || lower.Contains("איך") || lower.Contains("מתי") ||
                 lower.Contains("איפה") || lower.Contains("האם") || lower.Contains("כמה"))
+            {
+                Debug.Log("[IsQuestion] Found Hebrew question word - returning TRUE");
                 return true;
-            
+            }
+
             // Hebrew question patterns
             if (lower.Contains("תוכל") || lower.Contains("תוכלי") || lower.Contains("תוכלו") ||
                 lower.Contains("תגיד") || lower.Contains("תגידי") || lower.Contains("תגידו") ||
                 lower.Contains("תסביר") || lower.Contains("תסבירי") || lower.Contains("תסבירו"))
+            {
+                Debug.Log("[IsQuestion] Found Hebrew question pattern - returning TRUE");
                 return true;
+            }
         }
         
         // Check for rising intonation patterns (common in questions)
@@ -238,9 +264,13 @@ public class WebSpeechClassroomIntegration : MonoBehaviour
         foreach (string ending in questionEndings)
         {
             if (lower.EndsWith(ending) || lower.Contains(" " + ending))
+            {
+                Debug.Log($"[IsQuestion] Found question ending '{ending}' - returning TRUE");
                 return true;
+            }
         }
-        
+
+        Debug.Log($"[IsQuestion] No question patterns found in '{text}' - returning false");
         return false;
     }
 
