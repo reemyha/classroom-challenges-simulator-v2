@@ -29,19 +29,19 @@ public class StudentResponseBubble : MonoBehaviour
 
     [Header("Sizing")]
     [Tooltip("Minimum width of the bubble")]
-    public float minWidth = 100f;
+    public float minWidth = 60f;
 
     [Tooltip("Maximum width of the bubble")]
-    public float maxWidth = 250f;
+    public float maxWidth = 150f;
 
     [Tooltip("Padding around text")]
-    public Vector2 textPadding = new Vector2(10f, 8f);
+    public Vector2 textPadding = new Vector2(6f, 4f);
 
     [Tooltip("Width for eager/preview bubbles")]
-    public float eagerBubbleWidth = 80f;
+    public float eagerBubbleWidth = 50f;
 
     [Tooltip("Max width for full answer bubbles")]
-    public float answerBubbleMaxWidth = 300f;
+    public float answerBubbleMaxWidth = 180f;
 
     [Header("Styling")]
     [Tooltip("Background color of the bubble")]
@@ -51,10 +51,10 @@ public class StudentResponseBubble : MonoBehaviour
     public Color textColor = new Color(0.2f, 0.2f, 0.2f, 1f);
 
     [Tooltip("Font size")]
-    public int fontSize = 14;
+    public int fontSize = 11;
 
     [Tooltip("Font size for eager/preview text")]
-    public int eagerFontSize = 16;
+    public int eagerFontSize = 12;
 
     private string currentResponse = "";
     private RectTransform bubbleRect;
@@ -276,7 +276,7 @@ public class StudentResponseBubble : MonoBehaviour
 
             // Set width (clamped to min/max for full answers)
             float width = Mathf.Clamp(textWidth + textPadding.x * 2, minWidth, answerBubbleMaxWidth);
-            float height = Mathf.Max(35f, textHeight + textPadding.y * 2);
+            float height = Mathf.Max(24f, textHeight + textPadding.y * 2);
 
             bubbleRect.sizeDelta = new Vector2(width, height);
         }
@@ -332,7 +332,7 @@ public class StudentResponseBubble : MonoBehaviour
 
             // Smaller, more compact bubble for eager text
             float width = Mathf.Max(eagerBubbleWidth, textWidth + textPadding.x * 2);
-            float height = Mathf.Max(30f, textHeight + textPadding.y);
+            float height = Mathf.Max(20f, textHeight + textPadding.y);
 
             bubbleRect.sizeDelta = new Vector2(width, height);
         }
