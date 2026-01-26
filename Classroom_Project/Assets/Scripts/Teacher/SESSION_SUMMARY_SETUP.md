@@ -13,6 +13,138 @@ The Session Summary displays when a teacher clicks the "End Session" button. It 
 
 ---
 
+# RECOMMENDED: Enhanced End Session Panel (New!)
+
+The new `EndSessionPanelUI` component provides a modern, animated session summary with:
+- Smooth fade-in and slide animations
+- Animated score counter with color transitions
+- Staggered stat reveals for visual engagement
+- Achievement badge system with pop-in animations
+- Celebration effects for high scores
+- Better organized visual hierarchy
+
+## Quick Setup (Enhanced Panel)
+
+### Step 1: Create the Panel Structure
+
+```
+EndSessionPanel (Panel + CanvasGroup + EndSessionPanelUI)
+├── Background (Image - dark semi-transparent)
+├── Content (RectTransform - for slide animation)
+│   ├── Header
+│   │   ├── TitleText (TextMeshProUGUI - "סיכום שיעור")
+│   │   ├── SubtitleText (TextMeshProUGUI - grade text)
+│   │   └── HeaderBackground (Image)
+│   ├── ScoreSection
+│   │   ├── ScoreContainer (RectTransform)
+│   │   │   ├── ScoreText (TextMeshProUGUI - large number)
+│   │   │   └── ScoreLabelText (TextMeshProUGUI - "/100")
+│   │   ├── ScoreProgressBar (Slider)
+│   │   └── ScoreProgressFill (Image on fill area)
+│   ├── StatsSection
+│   │   ├── DurationText (TextMeshProUGUI)
+│   │   ├── PositiveActionsText (TextMeshProUGUI)
+│   │   ├── NegativeActionsText (TextMeshProUGUI)
+│   │   ├── TotalActionsText (TextMeshProUGUI)
+│   │   ├── EngagementText (TextMeshProUGUI)
+│   │   ├── EngagementProgressBar (Slider)
+│   │   └── DisruptionsText (TextMeshProUGUI)
+│   ├── BadgesContainer (Transform with HorizontalLayoutGroup)
+│   │   ├── Badge1 (Image + TextMeshProUGUI)
+│   │   ├── Badge2 (Image + TextMeshProUGUI)
+│   │   └── ... (up to 6 badges)
+│   └── ButtonsSection
+│       ├── ReturnHomeButton (Button)
+│       ├── RetryButton (Button - optional)
+│       └── DetailsButton (Button - optional)
+└── Effects (Optional)
+    ├── CelebrationParticles (ParticleSystem)
+    └── ExcellentEffect (GameObject)
+```
+
+### Step 2: Add the Component
+
+1. Select your `EndSessionPanel` GameObject
+2. Add Component → `EndSessionPanelUI`
+3. Add a `CanvasGroup` component (for fade animations)
+
+### Step 3: Assign References
+
+Drag the following elements to the Inspector:
+
+**Panel References:**
+- `Panel` → The main panel GameObject
+- `Canvas Group` → The CanvasGroup component
+- `Panel Background` → Background Image
+- `Content Container` → Content RectTransform
+
+**Header Section:**
+- `Title Text` → "סיכום שיעור" text
+- `Subtitle Text` → Grade/performance text
+- `Header Background` → Header background image
+
+**Score Display:**
+- `Score Text` → Large score number
+- `Score Label Text` → "/100" label
+- `Score Progress Bar` → Score slider
+- `Score Progress Fill` → Fill image
+- `Score Container` → Score container transform
+
+**Statistics Section:**
+- `Duration Text` → Time display
+- `Positive Actions Text` → Positive count
+- `Negative Actions Text` → Negative count
+- `Total Actions Text` → Total count
+- `Engagement Text` → Engagement %
+- `Engagement Progress Bar` → Engagement slider
+- `Disruptions Text` → Disruption count
+
+**Achievement Badges:**
+- `Badges Container` → Container transform
+- `Badge Images` → Array of badge images (optional)
+- `Badge Tooltips` → Array of tooltip texts (optional)
+
+**Buttons:**
+- `Return Home Button` → Home button
+- `Retry Button` → Retry button (optional)
+- `Details Button` → Details button (optional)
+
+**Effects (Optional):**
+- `Celebration Particles` → Confetti particle system
+- `Excellent Effect` → Star burst effect
+
+### Step 4: Connect to TeacherUI
+
+1. Select the GameObject with `TeacherUI`
+2. Find the **"New Enhanced Panel (Recommended)"** section
+3. Drag your `EndSessionPanelUI` component to `Enhanced End Session Panel`
+
+That's it! The enhanced panel will now be used automatically when ending a session.
+
+### Animation Settings
+
+You can customize animations in the Inspector:
+- `Fade In Duration`: 0.3s (panel fade)
+- `Slide Up Duration`: 0.4s (content slide)
+- `Score Count Duration`: 1.5s (score animation)
+- `Stat Reveal Delay`: 0.1s (between stats)
+- `Use Animations`: Toggle all animations
+
+### Color Scheme
+
+Customize colors in the Inspector:
+- `Excellent Color`: Green (90+ score)
+- `Very Good Color`: Light green (80-89)
+- `Good Color`: Yellow (70-79)
+- `Sufficient Color`: Orange (60-69)
+- `Failed Color`: Red (<60)
+
+---
+
+# Legacy Setup (Original Panel)
+
+If you prefer the original panel implementation, follow these steps:
+
 ## Step 1: Create the UI Panel
 
 ### 1.1 Create the Main Panel
