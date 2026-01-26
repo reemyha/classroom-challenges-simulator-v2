@@ -47,6 +47,14 @@ public class ClassroomManager : MonoBehaviour
     private int disruptionsAddressed = 0;
     private HashSet<string> disruptiveStudentsAddressed = new HashSet<string>();
 
+    [Header("Comfort Complaint Tracking")]
+    // Track students who complained about being cold ("קר לי")
+    private HashSet<string> studentsComplainedCold = new HashSet<string>();
+    // Track students who complained about being hot ("חם פה")
+    private HashSet<string> studentsComplainedHot = new HashSet<string>();
+    // AC state - true = on (cooling), false = off
+    private bool isACOn = true;
+
     [Header("Session Feedback Panel")]
     public SessionFeedbackPanelUI sessionFeedbackPanel;
     
@@ -115,6 +123,11 @@ public class ClassroomManager : MonoBehaviour
         totalDisruptionsOccurred = 0;
         disruptionsAddressed = 0;
         disruptiveStudentsAddressed = new HashSet<string>();
+
+        // Reset comfort complaint tracking
+        studentsComplainedCold = new HashSet<string>();
+        studentsComplainedHot = new HashSet<string>();
+        isACOn = true; // Default AC state is on
 
         Debug.Log($"Session initialized: {currentSession.sessionId}");
     }
@@ -206,6 +219,56 @@ public class ClassroomManager : MonoBehaviour
         }*/
 
     
+    /// <summary>
+    /// Register that a student complained about being cold ("קר לי")
+    /// Call this when a student says "קר לי" through spontaneous interaction
+    /// </summary>
+    public void RegisterColdComplaint(string studentId)
+    {
+        if (!string.IsNullOrEmpty(studentId))
+        {
+            studentsComplainedCold.Add(studentId);
+            Debug.Log($"[ClassroomManager] Registered cold complaint from student: {studentId}");
+        }
+    }
+
+    /// <summary>
+    /// Register that a student complained about being hot ("חם פה")
+    /// Call this when a student says "חם פה" through spontaneous interaction
+    /// </summary>
+    public void RegisterHotComplaint(string studentId)
+    {
+        if (!string.IsNullOrEmpty(studentId))
+        {
+            studentsComplainedHot.Add(studentId);
+            Debug.Log($"[ClassroomManager] Registered hot complaint from student: {studentId}");
+        }
+    }
+
+    /// <summary>
+    /// Check if a student has complained about being cold
+    /// </summary>
+    public bool HasComplainedCold(string studentId)
+    {
+        return studentsComplainedCold.Contains(studentId);
+    }
+
+    /// <summary>
+    /// Check if a student has complained about being hot
+    /// </summary>
+    public bool HasComplainedHot(string studentId)
+    {
+        return studentsComplainedHot.Contains(studentId);
+    }
+
+    /// <summary>
+    /// Get current AC state
+    /// </summary>
+    public bool IsACOn()
+    {
+        return isACOn;
+    }
+
     public void ExecuteBagItem(BagItemType item)
     {
         // Classwide effect using your existing system
@@ -231,9 +294,60 @@ public class ClassroomManager : MonoBehaviour
                 // Calm: give break
                 ExecuteClasswideAction(ActionType.GiveBreak, "Calming music in background");
                 break;
+
+            case BagItemType.AC:
+                // Toggle AC state and help students who complained about temperature
+                ToggleACClasswide();
+                break;
         }
 
         Debug.Log($"Bag item used: {item}");
+    }
+
+    /// <summary>
+    /// Toggle AC for entire classroom and help students who complained about temperature
+    /// </summary>
+    private void ToggleACClasswide()
+    {
+        isACOn = !isACOn;
+        string action = isACOn ? "הפעיל" : "כיבה";
+        Debug.Log($"[ClassroomManager] Teacher {action} את המזגן");
+
+        // If AC was turned off, help students who complained about cold
+        if (!isACOn)
+        {
+            foreach (StudentAgent student in activeStudents)
+            {
+                if (student != null && studentsComplainedCold.Contains(student.studentId))
+                {
+                    // Student complained about cold and AC was turned off - improve their mood
+                    student.emotions.ApplyTrigger(EmotionalTrigger.ComfortNeedAddressed);
+                    studentsComplainedCold.Remove(student.studentId); // Clear the complaint
+                    Debug.Log($"[ClassroomManager] {student.studentName}'s mood improved - AC turned off (they were cold)");
+                }
+            }
+        }
+        // If AC was turned on, help students who complained about heat
+        else
+        {
+            foreach (StudentAgent student in activeStudents)
+            {
+                if (student != null && studentsComplainedHot.Contains(student.studentId))
+                {
+                    // Student complained about heat and AC was turned on - improve their mood
+                    student.emotions.ApplyTrigger(EmotionalTrigger.ComfortNeedAddressed);
+                    studentsComplainedHot.Remove(student.studentId); // Clear the complaint
+                    Debug.Log($"[ClassroomManager] {student.studentName}'s mood improved - AC turned on (they were hot)");
+                }
+            }
+        }
+
+        // Update UI feedback if available
+        if (teacherUI != null)
+        {
+            string feedback = isACOn ? "המזגן הופעל" : "המזגן כובה";
+            teacherUI.ShowFeedback(feedback, Color.cyan);
+        }
     }
 
     /// <summary>
@@ -285,6 +399,12 @@ public class ClassroomManager : MonoBehaviour
                 context = $"Calming music for {student.studentName}";
                 break;
 
+            case BagItemType.AC:
+                // AC toggle specifically for this student
+                // Check if student complained about temperature and address it
+                HandleACForStudent(student);
+                return; // Return early - handled separately
+
             default:
                 actionType = ActionType.Praise;
                 context = $"Bag item used on {student.studentName}";
@@ -302,6 +422,77 @@ public class ClassroomManager : MonoBehaviour
         ExecuteTeacherAction(action);
 
         Debug.Log($"Bag item {item} used on student: {student.studentName}");
+    }
+
+    /// <summary>
+    /// Handle AC toggle specifically for a student who complained about temperature
+    /// When addressing a student by name who said "קר לי" and turning off AC, improves their mood
+    /// </summary>
+    private void HandleACForStudent(StudentAgent student)
+    {
+        if (student == null) return;
+
+        bool studentWasCold = studentsComplainedCold.Contains(student.studentId);
+        bool studentWasHot = studentsComplainedHot.Contains(student.studentId);
+
+        // Toggle AC state
+        isACOn = !isACOn;
+        string acAction = isACOn ? "הפעיל" : "כיבה";
+
+        // Track the interaction
+        studentsInteractedWith.Add(student.studentId);
+
+        // Check if this action addresses the student's comfort complaint
+        if (!isACOn && studentWasCold)
+        {
+            // Student complained about cold ("קר לי") and teacher turned OFF the AC for them
+            // This is exactly what they needed - big mood improvement!
+            student.emotions.ApplyTrigger(EmotionalTrigger.ComfortNeedAddressed);
+            studentsComplainedCold.Remove(student.studentId);
+
+            Debug.Log($"[ClassroomManager] {student.studentName}: Teacher addressed their cold complaint by turning off AC - mood improved!");
+
+            if (teacherUI != null)
+            {
+                teacherUI.ShowFeedback($"כיבית את המזגן עבור {student.studentName} - מצב הרוח השתפר!", Color.green);
+            }
+        }
+        else if (isACOn && studentWasHot)
+        {
+            // Student complained about heat ("חם פה") and teacher turned ON the AC for them
+            student.emotions.ApplyTrigger(EmotionalTrigger.ComfortNeedAddressed);
+            studentsComplainedHot.Remove(student.studentId);
+
+            Debug.Log($"[ClassroomManager] {student.studentName}: Teacher addressed their heat complaint by turning on AC - mood improved!");
+
+            if (teacherUI != null)
+            {
+                teacherUI.ShowFeedback($"הפעלת את המזגן עבור {student.studentName} - מצב הרוח השתפר!", Color.green);
+            }
+        }
+        else
+        {
+            // Student didn't complain about temperature, just toggle AC
+            Debug.Log($"[ClassroomManager] Teacher {acAction} את המזגן (addressing {student.studentName})");
+
+            if (teacherUI != null)
+            {
+                string feedback = isACOn ? "המזגן הופעל" : "המזגן כובה";
+                teacherUI.ShowFeedback(feedback, Color.cyan);
+            }
+        }
+
+        // Record the action
+        TeacherAction action = new TeacherAction
+        {
+            Type = ActionType.PositiveReinforcement, // Addressing comfort is positive
+            TargetStudentId = student.studentId,
+            Context = $"Teacher {acAction} AC for {student.studentName}",
+            Timestamp = Time.time - sessionStartTime
+        };
+        currentSession.teacherActions.Add(action);
+        actionCount++;
+        positiveInterventions++;
     }
 
     /// <summary>

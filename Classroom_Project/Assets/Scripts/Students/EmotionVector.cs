@@ -136,6 +136,15 @@ public class EmotionVector
                 Anger += 2f;
                 Frustration += 1f;
                 break;
+
+            case EmotionalTrigger.ComfortNeedAddressed:
+                // Teacher addressed student's comfort need (e.g., turned off AC when cold)
+                // Big positive emotional impact - student feels heard and cared for
+                Happiness += 3f;
+                Sadness = Mathf.Max(1f, Sadness - 1.5f);
+                Frustration = Mathf.Max(1f, Frustration - 2f);
+                Anger = Mathf.Max(1f, Anger - 1f);
+                break;
         }
 
         ClampValues();
@@ -277,5 +286,6 @@ public enum EmotionalTrigger
     PeerPraise,
     LongPassiveActivity,
     SuccessfulContribution,
-    PeerConflict
+    PeerConflict,
+    ComfortNeedAddressed  // When teacher addresses student's comfort complaint (e.g., turning off AC for cold student)
 }

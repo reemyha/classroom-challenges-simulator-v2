@@ -3,5 +3,6 @@ public enum BagItemType
     Ruler = 0,
     Game = 1,
     Book = 2,
-    Music = 3
+    Music = 3,
+    AC = 4  // Air conditioning toggle - helps students who complained about temperature
 }

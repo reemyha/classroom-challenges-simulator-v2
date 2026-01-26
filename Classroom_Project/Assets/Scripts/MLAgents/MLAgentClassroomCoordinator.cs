@@ -422,6 +422,9 @@ public class MLAgentClassroomCoordinator : MonoBehaviour
                     bubble.ShowEagerBubble(interaction.content);
                 }
             }
+
+            // Register temperature complaints with ClassroomManager
+            RegisterTemperatureComplaint(interaction);
         }
 
         // Fire event
@@ -433,6 +436,49 @@ public class MLAgentClassroomCoordinator : MonoBehaviour
         if (config.debugLogging)
         {
             Debug.Log($"[MLAgentCoordinator] Showing interaction: {interaction.studentName} - {interaction.type}: {interaction.content}");
+        }
+    }
+
+    /// <summary>
+    /// Register temperature complaints (cold/hot) with ClassroomManager
+    /// So that when teacher addresses student with AC, their mood improves
+    /// </summary>
+    private void RegisterTemperatureComplaint(SpontaneousInteraction interaction)
+    {
+        if (interaction == null || string.IsNullOrEmpty(interaction.content))
+            return;
+
+        // Only register interruption-type complaints about temperature
+        if (interaction.type != InteractionType.Interruption)
+            return;
+
+        // Get the ClassroomManager
+        ClassroomManager manager = classroomManager as ClassroomManager;
+        if (manager == null)
+        {
+            manager = FindObjectOfType<ClassroomManager>();
+        }
+
+        if (manager == null)
+            return;
+
+        // Check for cold complaint ("קר לי")
+        if (interaction.content.Contains("קר לי") || interaction.content.Contains("קר"))
+        {
+            manager.RegisterColdComplaint(interaction.studentId);
+            if (config.debugLogging)
+            {
+                Debug.Log($"[MLAgentCoordinator] Registered cold complaint from {interaction.studentName}");
+            }
+        }
+        // Check for hot complaint ("חם פה")
+        else if (interaction.content.Contains("חם פה") || interaction.content.Contains("חם"))
+        {
+            manager.RegisterHotComplaint(interaction.studentId);
+            if (config.debugLogging)
+            {
+                Debug.Log($"[MLAgentCoordinator] Registered hot complaint from {interaction.studentName}");
+            }
         }
     }
 
