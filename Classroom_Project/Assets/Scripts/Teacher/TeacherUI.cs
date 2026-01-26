@@ -100,18 +100,22 @@ public class TeacherUI : MonoBehaviour
     [Header("Optional Enhanced UI Elements")]
     [Tooltip("Optional: Score display text (large, prominent)")]
     public TextMeshProUGUI scoreDisplayText;
-    
+
     [Tooltip("Optional: Score progress bar/slider")]
     public Slider scoreProgressBar;
-    
+
     [Tooltip("Optional: Image component for panel background (for color changes)")]
     public Image endSessionPanelBackground;
-    
+
     [Tooltip("Optional: Title text for the feedback panel")]
     public TextMeshProUGUI endSessionTitleText;
-    
+
     [Tooltip("Optional: Slider/progress bar for the title area (shows score progress)")]
     public Slider titleScoreSlider;
+
+    [Header("New Enhanced Panel (Recommended)")]
+    [Tooltip("Reference to the new EndSessionPanelUI component for enhanced UI with animations")]
+    public EndSessionPanelUI enhancedEndSessionPanel;
 
     [Header("Action Menu")]
     public GameObject actionMenu;
@@ -879,7 +883,15 @@ public class TeacherUI : MonoBehaviour
         {
             report = storedSessionReport;
         }
-        
+
+        // Priority 1: Use the new enhanced panel if available (recommended)
+        if (enhancedEndSessionPanel != null)
+        {
+            enhancedEndSessionPanel.ShowSessionSummary(report);
+            return;
+        }
+
+        // Priority 2: Use legacy panel if enhanced panel not assigned
         if (endSessionFeedbackPanel == null)
         {
             // Fallback to old feedback method if panel not assigned
