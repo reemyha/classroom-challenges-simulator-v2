@@ -1,0 +1,21 @@
+Library/
+Temp/
+Obj/
+Logs/
+UserSettings/
+Build/
+Builds/
+
+# Visual Studio / Unity generated
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+.vs/
+
+# Vercel / WebGL build output
+vercel_build/
+classroom_vercel/
+classroom_vercel_b/
