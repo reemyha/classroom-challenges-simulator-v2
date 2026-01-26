@@ -199,14 +199,19 @@ public class TeacherUI : MonoBehaviour
     public void UpdateMetrics(float engagement, int disruptions)
     {
         if (engagementText != null)
-            engagementText.text = $"מעורבות: {engagement:P0}";
+        {
+            // Format percentage with LTR override for correct display in RTL Hebrew context
+            string engagementPercent = FormatNumberLTR(Mathf.RoundToInt(engagement * 100f) + "%");
+            engagementText.text = $"מעורבות: {engagementPercent}";
+        }
 
         if (engagementSlider != null)
             engagementSlider.value = engagement;
 
         if (disruptionText != null)
         {
-            disruptionText.text = $"הפרעות: {disruptions}";
+            // Format number with LTR override for correct display in RTL Hebrew context
+            disruptionText.text = $"הפרעות: {FormatNumberLTR(disruptions)}";
             disruptionText.color = disruptions > 5 ? Color.red : Color.white;
         }
     }
@@ -221,7 +226,8 @@ public class TeacherUI : MonoBehaviour
             float elapsed = Time.time - sessionStartTime;
             int minutes = Mathf.FloorToInt(elapsed / 60f);
             int seconds = Mathf.FloorToInt(elapsed % 60f);
-            sessionTimeText.text = $"{minutes:00}:{seconds:00}";
+            // Format time with LTR override for correct display in RTL Hebrew context
+            sessionTimeText.text = FormatNumberLTR($"{minutes:00}:{seconds:00}");
         }
     }
 
@@ -514,10 +520,10 @@ public class TeacherUI : MonoBehaviour
         // Use ClassroomManager to handle the break
         classroomManager.GiveStudentBreak(student, durationMinutes);
 
-        // Show feedback
+        // Show feedback with LTR number formatting for correct display in RTL Hebrew context
         int minutes = Mathf.FloorToInt(durationMinutes);
         int seconds = Mathf.RoundToInt((durationMinutes - minutes) * 60f);
-        string durationText = minutes > 0 ? $"{minutes} דקות" : $"{seconds} שניות";
+        string durationText = minutes > 0 ? $"{FormatNumberLTR(minutes)} דקות" : $"{FormatNumberLTR(seconds)} שניות";
         ShowFeedback($"{student.studentName} יוצא להפסקה של {durationText}", Color.green);
 
         // Deselect student after giving break
@@ -877,15 +883,16 @@ public class TeacherUI : MonoBehaviour
         if (endSessionFeedbackPanel == null)
         {
             // Fallback to old feedback method if panel not assigned
+            // Numbers are wrapped with LTR override for correct display in RTL Hebrew context
             if (endSessionFeedbackText != null)
             {
                 string fallbackSummary = $"השלמת שיעור\n\n" +
-                                $"ציון: {report.score:F1}/100\n" +
-                                $"משך זמן: {report.sessionData.duration:F1} שניות\n" +
-                                $"סך פעולות: {report.totalActions}\n" +
-                                $"חיוביות: {report.positiveActions} | שליליות: {report.negativeActions}\n" +
-                                $"מעורבות ממוצעת: {report.averageEngagement:P0}\n" +
-                                $"הפרעות: {report.totalDisruptions}\n\n" +
+                                $"ציון: {FormatNumberLTR($"{report.score:F1}/100")}\n" +
+                                $"משך זמן: {FormatNumberLTR($"{report.sessionData.duration:F1}")} שניות\n" +
+                                $"סך פעולות: {FormatNumberLTR(report.totalActions)}\n" +
+                                $"חיוביות: {FormatNumberLTR(report.positiveActions)} | שליליות: {FormatNumberLTR(report.negativeActions)}\n" +
+                                $"מעורבות ממוצעת: {FormatNumberLTR(Mathf.RoundToInt(report.averageEngagement * 100f) + "%")}\n" +
+                                $"הפרעות: {FormatNumberLTR(report.totalDisruptions)}\n\n" +
                                 GetPerformanceGrade(report.score);
                 ShowFeedback(fallbackSummary, Color.cyan);
             }
@@ -1051,16 +1058,18 @@ public class TeacherUI : MonoBehaviour
 
     /// <summary>
     /// Update optional enhanced UI elements
+    /// Numbers are wrapped with LTR override for correct display in RTL Hebrew context
     /// </summary>
     void UpdateOptionalUIElements(SessionReport report, Color scoreColor, Color panelTint, string gradeEmoji)
     {
-        // Update title if available - include score in title
+        // Update title if available - include score in title with LTR number formatting
         if (endSessionTitleText != null)
         {
-            endSessionTitleText.text = $"{gradeEmoji} סיכום שיעור - ציון: {report.score:F1}/100 {gradeEmoji}";
+            string scoreLTR = FormatNumberLTR($"{report.score:F1}/100");
+            endSessionTitleText.text = $"{gradeEmoji} סיכום שיעור - ציון: {scoreLTR} {gradeEmoji}";
             endSessionTitleText.color = scoreColor;
         }
-        
+
         // Update title slider if available
         if (titleScoreSlider != null)
         {
@@ -1071,10 +1080,12 @@ public class TeacherUI : MonoBehaviour
             titleScoreSlider.colors = colors;
         }
 
-        // Update score display if available
+        // Update score display if available with LTR number formatting
         if (scoreDisplayText != null)
         {
-            scoreDisplayText.text = $"<size=48><b><color=#{ColorUtility.ToHtmlStringRGB(scoreColor)}>{report.score:F1}</color></b></size>\n<size=20>/100</size>";
+            string scoreValueLTR = FormatNumberLTR($"{report.score:F1}");
+            string maxScoreLTR = FormatNumberLTR("/100");
+            scoreDisplayText.text = $"<size=48><b><color=#{ColorUtility.ToHtmlStringRGB(scoreColor)}>{scoreValueLTR}</color></b></size>\n<size=20>{maxScoreLTR}</size>";
             scoreDisplayText.isRightToLeftText = true;
             scoreDisplayText.alignment = TMPro.TextAlignmentOptions.Center;
         }
@@ -1110,6 +1121,7 @@ public class TeacherUI : MonoBehaviour
 
     /// <summary>
     /// Build enhanced summary text with colors and visual formatting
+    /// Numbers are wrapped with LTR override for correct display in RTL Hebrew context
     /// </summary>
     string BuildEnhancedSummary(SessionReport report, int minutes, int seconds, Color scoreColor, string gradeText, string gradeEmoji)
     {
@@ -1120,17 +1132,26 @@ public class TeacherUI : MonoBehaviour
         string warningColor = "FF9800"; // Orange
         string scoreColorHex = ColorUtility.ToHtmlStringRGB(scoreColor);
 
+        // Format all numbers with LTR override for correct display in RTL Hebrew context
+        string scoreLTR = FormatNumberLTR($"{report.score:F1}/100");
+        string durationLTR = FormatNumberLTR($"{minutes:00}:{seconds:00}");
+        string positiveActionsLTR = FormatNumberLTR(report.positiveActions);
+        string negativeActionsLTR = FormatNumberLTR(report.negativeActions);
+        string totalActionsLTR = FormatNumberLTR(report.totalActions);
+        string engagementLTR = FormatNumberLTR(Mathf.RoundToInt(report.averageEngagement * 100f) + "%");
+        string disruptionsLTR = FormatNumberLTR(report.totalDisruptions);
+
         // Build summary with rich text formatting (TextMeshPro uses color=#RRGGBB format)
-        string summary = $"<size=28><b><color=#{scoreColorHex}>ציון: {report.score:F1}/100</color></b></size>\n\n" +
+        string summary = $"<size=28><b><color=#{scoreColorHex}>ציון: {scoreLTR}</color></b></size>\n\n" +
                         $"<size=22><b>{gradeEmoji} {gradeText}</b></size>\n\n" +
-                        $"<color=#{neutralColor}>⏱ <b>משך זמן:</b></color> {minutes:00}:{seconds:00}\n\n" +
+                        $"<color=#{neutralColor}>⏱ <b>משך זמן:</b></color> {durationLTR}\n\n" +
                         $"<color=#{neutralColor}>📊 <b>סטטיסטיקות פעולות:</b></color>\n" +
-                        $"   <color=#{positiveColor}>✓ פעולות חיוביות:</color> <b>{report.positiveActions}</b>\n" +
-                        $"   <color=#{negativeColor}>✗ פעולות שליליות:</color> <b>{report.negativeActions}</b>\n" +
-                        $"   <color=#{neutralColor}>📝 סך פעולות:</color> <b>{report.totalActions}</b>\n\n" +
+                        $"   <color=#{positiveColor}>✓ פעולות חיוביות:</color> <b>{positiveActionsLTR}</b>\n" +
+                        $"   <color=#{negativeColor}>✗ פעולות שליליות:</color> <b>{negativeActionsLTR}</b>\n" +
+                        $"   <color=#{neutralColor}>📝 סך פעולות:</color> <b>{totalActionsLTR}</b>\n\n" +
                         $"<color=#{neutralColor}>📈 <b>ביצועי כיתה:</b></color>\n" +
-                        $"   <color=#{GetEngagementColor(report.averageEngagement)}>📚 מעורבות ממוצעת:</color> <b>{report.averageEngagement:P0}</b>\n" +
-                        $"   <color=#{GetDisruptionColor(report.totalDisruptions)}>⚠ הפרעות:</color> <b>{report.totalDisruptions}</b>";
+                        $"   <color=#{GetEngagementColor(report.averageEngagement)}>📚 מעורבות ממוצעת:</color> <b>{engagementLTR}</b>\n" +
+                        $"   <color=#{GetDisruptionColor(report.totalDisruptions)}>⚠ הפרעות:</color> <b>{disruptionsLTR}</b>";
 
         return summary;
     }
@@ -1246,6 +1267,31 @@ public class TeacherUI : MonoBehaviour
             case StudentState.Withdrawn: return "מסוגר";
             default: return state.ToString();
         }
+    }
+
+    /// <summary>
+    /// Format a number with LTR override for correct display in RTL Hebrew context
+    /// Uses Unicode Left-to-Right Override (LRO) and Pop Directional Formatting (PDF)
+    /// </summary>
+    string FormatNumberLTR(string numberString)
+    {
+        return "\u202D" + numberString + "\u202C";
+    }
+
+    /// <summary>
+    /// Format a float with LTR override for RTL context
+    /// </summary>
+    string FormatNumberLTR(float value, string format = "F1")
+    {
+        return "\u202D" + value.ToString(format) + "\u202C";
+    }
+
+    /// <summary>
+    /// Format an integer with LTR override for RTL context
+    /// </summary>
+    string FormatNumberLTR(int value)
+    {
+        return "\u202D" + value.ToString() + "\u202C";
     }
 
     /// <summary>
