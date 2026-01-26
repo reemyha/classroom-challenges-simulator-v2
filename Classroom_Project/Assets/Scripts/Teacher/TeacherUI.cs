@@ -1270,28 +1270,32 @@ public class TeacherUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Format a number with LTR override for correct display in RTL Hebrew context
-    /// Uses Unicode Left-to-Right Override (LRO) and Pop Directional Formatting (PDF)
+    /// Format a number for correct display in RTL Hebrew context when using TextMeshPro RTL mode.
+    /// Since TMP with isRightToLeftText=true reverses character order, we pre-reverse numbers
+    /// so they display correctly after TMP's transformation.
     /// </summary>
     string FormatNumberLTR(string numberString)
     {
-        return "\u202D" + numberString + "\u202C";
+        // Reverse the string so TMP's RTL reversal displays it correctly
+        char[] chars = numberString.ToCharArray();
+        System.Array.Reverse(chars);
+        return new string(chars);
     }
 
     /// <summary>
-    /// Format a float with LTR override for RTL context
+    /// Format a float for correct display in RTL context
     /// </summary>
     string FormatNumberLTR(float value, string format = "F1")
     {
-        return "\u202D" + value.ToString(format) + "\u202C";
+        return FormatNumberLTR(value.ToString(format));
     }
 
     /// <summary>
-    /// Format an integer with LTR override for RTL context
+    /// Format an integer for correct display in RTL context
     /// </summary>
     string FormatNumberLTR(int value)
     {
-        return "\u202D" + value.ToString() + "\u202C";
+        return FormatNumberLTR(value.ToString());
     }
 
     /// <summary>
